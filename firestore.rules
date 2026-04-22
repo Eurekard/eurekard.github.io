@@ -1,0 +1,91 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // 0. Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() { return request.auth != null; }
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    
+    function isValidId(id) { 
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); 
+    }
+
+    // Entity Validations
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'username', 'email', 'createdAt'])
+        && data.uid == request.auth.uid
+        && data.username is string && data.username.size() >= 3 && data.username.size() <= 30
+        && data.email == request.auth.token.email
+        && data.createdAt is string; // or timestamp
+    }
+
+    function isValidCard(data) {
+      return data.keys().hasAll(['uid', 'username', 'published_content', 'draft_content'])
+        && data.uid == request.auth.uid
+        && data.username is string;
+    }
+
+    function isValidResponse(data) {
+      return data.keys().hasAll(['message', 'createdAt', 'status'])
+        && data.message is string && data.message.size() <= 1000
+        && data.status in ['unread', 'archived', 'deleted']
+        && (data.keys().size() == 3 || (data.keys().size() == 4 && data.keys().hasAll(['reply'])));
+    }
+
+    // 1. User Profiles
+    match /users/{userId} {
+      allow get: if isSignedIn();
+      allow list: if false; // No blanket reads
+      allow create: if isOwner(userId) && isValidUser(incoming());
+      allow update: if isOwner(userId) 
+        && isValidUser(incoming())
+        && incoming().uid == existing().uid
+        && incoming().username == existing().username
+        && incoming().createdAt == existing().createdAt;
+    }
+
+    // 2. Card Content
+    match /cards/{cardId} {
+      allow get: if true;
+      allow list: if false;
+      allow create: if isOwner(cardId) && isValidCard(incoming());
+      allow update: if isOwner(cardId)
+        && isValidCard(incoming())
+        && incoming().uid == existing().uid
+        && (
+          // Action: Sync
+          incoming().diff(existing()).affectedKeys().hasOnly(['published_content', 'draft_content', 'updatedAt'])
+        );
+      
+      // 2.1 Responses Subcollection
+      match /responses/{responseId} {
+        allow read: if isOwner(cardId);
+        allow create: if incoming().message is string && incoming().message.size() <= 1000
+          && incoming().status == 'unread';
+        allow update: if isOwner(cardId)
+          && incoming().message == existing().message
+          && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'reply']);
+        allow delete: if isOwner(cardId);
+      }
+    }
+
+    // 3. Usernames Reverse Lookup
+    match /usernames/{username} {
+      allow get: if true;
+      allow create: if isSignedIn() && isValidId(username) && incoming().uid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // 4. Analytics
+    match /analytics/{cardId} {
+      allow read, write: if isOwner(cardId);
+    }
+  }
+}

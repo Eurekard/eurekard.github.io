@@ -1,0 +1,38 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Outfit", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --color-cream: #F5F5DC;
+  --color-cat-blue: #89CFF0;
+  --color-chocolate: #3D2B1F;
+  --color-glass-bg: rgba(255, 255, 255, 0.4);
+}
+
+@layer base {
+  body {
+    @apply bg-cream text-chocolate font-sans selection:bg-cat-blue/30;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display;
+  }
+}
+
+.glass-card {
+  @apply bg-white/40 backdrop-blur-md border border-white/20 shadow-xl;
+}
+
+.soft-shadow {
+  box-shadow: 0 8px 32px 0 rgba(61, 43, 31, 0.08);
+}
+
+.embed-container iframe, .pointer-events-none iframe {
+  width: 100%;
+  border: none;
+  border-radius: 1.5rem;
+  background: white;
+}

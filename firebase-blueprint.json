@@ -1,0 +1,89 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Core user information and account settings",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "username": { "type": "string" },
+        "email": { "type": "string" },
+        "avatarUrl": { "type": "string" },
+        "theme": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "settings": {
+          "type": "object",
+          "properties": {
+            "emailNotifications": { "type": "boolean" },
+            "darkMode": { "type": "boolean" }
+          }
+        }
+      },
+      "required": ["uid", "username", "email"]
+    },
+    "Card": {
+      "title": "Personal Card",
+      "description": "The custom landing page content and styles",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "username": { "type": "string" },
+        "published_content": { "type": "object" },
+        "draft_content": { "type": "object" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "username"]
+    },
+    "Response": {
+      "title": "Anonymous Response",
+      "description": "Messages received in the anonymous box",
+      "type": "object",
+      "properties": {
+        "cardId": { "type": "string" },
+        "message": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["unread", "archived", "deleted"] },
+        "reply": { "type": "string" }
+      },
+      "required": ["cardId", "message", "createdAt"]
+    },
+    "Analytics": {
+      "title": "Card Analytics",
+      "description": "Summarized stats for user cards",
+      "type": "object",
+      "properties": {
+        "cardId": { "type": "string" },
+        "dailyStats": {
+          "type": "object"
+        }
+      }
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "User",
+      "description": "Root collection for user profiles"
+    },
+    "cards/{cardId}": {
+      "schema": "Card",
+      "description": "Individual card data, indexed by a unique ID (or potentially UID/username)"
+    },
+    "cards/{cardId}/responses/{responseId}": {
+      "schema": "Response",
+      "description": "Subcollection of responses for a specific card"
+    },
+    "analytics/{cardId}": {
+      "schema": "Analytics",
+      "description": "Analytics tracking for a specific card"
+    },
+    "usernames/{username}": {
+      "schema": {
+        "type": "object",
+        "properties": {
+          "uid": { "type": "string" }
+        }
+      },
+      "description": "Reverse lookup for username uniqueness and routing"
+    }
+  }
+}
