@@ -8,7 +8,17 @@ export default function Home() {
   const { user, signIn, profile } = useAuth();
   const navigate = useNavigate();
 
-  const handleStart = () => {
+  const handleStart = async () => {
+    if (!user) {
+      try {
+        await signIn();
+      } catch (error) {
+        console.error(error);
+        alert('登入失敗，請稍後再試');
+        return;
+      }
+    }
+
     navigate('/dashboard');
   };
 
@@ -28,7 +38,7 @@ export default function Home() {
           onClick={handleStart}
           className="px-6 py-2 bg-white text-chocolate font-medium rounded-full soft-shadow hover:scale-105 transition-transform"
         >
-          {user ? '進入儀表板' : '進入編輯器 (測試)'}
+          {user ? '進入儀表板' : '使用 Google 登入'}
         </button>
       </nav>
 
@@ -59,7 +69,7 @@ export default function Home() {
               onClick={handleStart}
               className="px-10 py-5 bg-chocolate text-white text-lg font-bold rounded-3xl hover:bg-chocolate/90 transition-all flex items-center justify-center gap-3 soft-shadow group"
             >
-              立即開始製作
+              {user ? '立即開始製作' : '使用 Google 登入'}
               <ArrowRight className="group-hover:translate-x-1 transition-transform" />
             </button>
             <div className="flex items-center gap-4 px-6 py-4 bg-white/50 backdrop-blur-sm border border-white/50 rounded-3xl">

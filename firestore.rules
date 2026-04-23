@@ -61,7 +61,7 @@ service cloud.firestore {
         && incoming().uid == existing().uid
         && (
           // Action: Sync
-          incoming().diff(existing()).affectedKeys().hasOnly(['published_content', 'draft_content', 'updatedAt'])
+          incoming().diff(existing()).affectedKeys().hasOnly(['published_content', 'draft_content', 'profile', 'settings', 'updatedAt'])
         );
       
       // 2.1 Responses Subcollection

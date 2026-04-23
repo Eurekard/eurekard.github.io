@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { CardData, CardElement } from '../../types';
 import { Plus, GripVertical, Trash2, Layout, Type, Image as ImageIcon, Link as LinkIcon, Play, Hash, Music, Timer, Heart, Settings2, Palette, Save, Eye, Sparkles, UploadCloud, Loader2 } from 'lucide-react';
 import { motion, Reorder, AnimatePresence } from 'motion/react';
-import { db, storage } from '../../lib/firebase';
+import { db } from '../../lib/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { cn } from '../../lib/utils';
+import { compressImageForWeb } from '../../lib/imageCompression';
+import { uploadImageToR2 } from '../../lib/r2Upload';
 
 const ELEMENT_TYPES = [
   { type: 'text', label: '文字', icon: Type },
@@ -162,7 +163,7 @@ export default function EditorView({ cardData }: { cardData: CardData }) {
               
               {/* Disable interactions inside preview so we don't accidentally navigate or type while dragging */}
               <div className="pointer-events-none">
-                <ElementPreview el={el} cardData={cardData} />
+                <ElementPreview el={el} />
               </div>
             </Reorder.Item>
           ))}
@@ -397,8 +398,9 @@ function ElementPreview({ el }: { el: CardElement }) {
 function ImageUploadControl({ currentUrl, onUploadComplete }: { currentUrl?: string, onUploadComplete: (url: string) => void }) {
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [statusText, setStatusText] = useState('');
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -409,28 +411,38 @@ function ImageUploadControl({ currentUrl, onUploadComplete }: { currentUrl?: str
     }
 
     setUploading(true);
-    setProgress(0);
+    setProgress(5);
+    setStatusText('壓縮圖片中...');
 
-    const fileRef = ref(storage, `uploads/${Date.now()}_${file.name}`);
-    const uploadTask = uploadBytesResumable(fileRef, file);
+    try {
+      const compressed = await compressImageForWeb(file);
+      setProgress(40);
+      setStatusText(`上傳 ${compressed.extension.toUpperCase()} 中...`);
 
-    uploadTask.on(
-      'state_changed',
-      (snapshot) => {
-        const p = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-        setProgress(Math.round(p));
-      },
-      (error) => {
-        console.error(error);
-        alert('上傳失敗');
+      const safeBaseName = file.name.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9._-]/g, '_') || 'image';
+      const uploadedUrl = await uploadImageToR2({
+        blob: compressed.blob,
+        fileName: safeBaseName,
+        contentType: compressed.mimeType,
+        onProgress: (p) => {
+          const mapped = 40 + Math.round(p * 0.6);
+          setProgress(Math.min(99, mapped));
+        },
+      });
+
+      setProgress(100);
+      setStatusText('上傳完成');
+      onUploadComplete(uploadedUrl);
+    } catch (error) {
+      console.error(error);
+      alert('上傳失敗，請檢查 R2 設定或稍後再試');
+    } finally {
+      setTimeout(() => {
         setUploading(false);
-      },
-      async () => {
-        const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-        onUploadComplete(downloadURL);
-        setUploading(false);
-      }
-    );
+        setProgress(0);
+        setStatusText('');
+      }, 250);
+    }
   };
 
   return (
@@ -448,7 +460,7 @@ function ImageUploadControl({ currentUrl, onUploadComplete }: { currentUrl?: str
           {uploading ? (
             <>
               <Loader2 className="animate-spin text-cat-blue" size={24} />
-              <div className="text-xs font-bold text-cat-blue">上傳中... {progress}%</div>
+              <div className="text-xs font-bold text-cat-blue">{statusText || '上傳中...'} {progress}%</div>
             </>
           ) : (
             <>
@@ -456,7 +468,7 @@ function ImageUploadControl({ currentUrl, onUploadComplete }: { currentUrl?: str
               <div className="text-xs font-bold text-chocolate/60">
                 點擊或拖曳圖片至此處
               </div>
-              <div className="text-[10px] text-chocolate/30">最大支援 5MB</div>
+              <div className="text-[10px] text-chocolate/30">自動壓縮成 AVIF/WebP 後上傳</div>
             </>
           )}
         </div>
