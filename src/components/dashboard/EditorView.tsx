@@ -7,6 +7,7 @@ import { doc, setDoc } from 'firebase/firestore';
 import { cn } from '../../lib/utils';
 import { compressImageForWeb } from '../../lib/imageCompression';
 import { uploadImageToR2 } from '../../lib/r2Upload';
+import { useAuth } from '../../context/AuthContext';
 
 const ELEMENT_TYPES = [
   { type: 'text', label: '文字', icon: Type },
@@ -20,6 +21,7 @@ const ELEMENT_TYPES = [
 ];
 
 export default function EditorView({ cardData, ownerUid }: { cardData: CardData; ownerUid: string | null }) {
+  const { user } = useAuth();
   const [elements, setElements] = useState<CardElement[]>(cardData?.draft_content?.elements || []);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
