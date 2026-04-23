@@ -245,11 +245,14 @@ function RenderElement({ el, onSendAnon, anonMessage, setAnonMessage, sent, isRe
   if (type === 'text') {
     const alignClass = content.align === 'left' ? 'text-left' : content.align === 'right' ? 'text-right' : 'text-center';
     return (
-      <div className={cn(
-        "text-chocolate font-bold leading-tight mx-auto px-4",
-        alignClass,
-        content.size === '6xl' ? 'text-4xl md:text-5xl font-black mb-4' : 'text-lg opacity-80'
-      )}>
+      <div
+        style={{ color: globalStyles?.textColor }}
+        className={cn(
+          "font-bold leading-tight mx-auto px-4",
+          alignClass,
+          content.size === '6xl' ? 'text-4xl md:text-5xl font-black mb-4' : 'text-lg opacity-80'
+        )}
+      >
         {content.text}
       </div>
     );
@@ -284,14 +287,20 @@ function RenderElement({ el, onSendAnon, anonMessage, setAnonMessage, sent, isRe
 
   if (type === 'anon_box') {
     return (
-      <div className="w-full bg-chocolate p-8 rounded-[3rem] text-white space-y-4 shadow-2xl relative overflow-hidden group">
+      <div
+        style={{
+          ...baseComponentStyle,
+          borderColor: globalStyles?.componentBorderColor,
+        }}
+        className="w-full p-8 rounded-[3rem] border space-y-4 shadow-2xl relative overflow-hidden group"
+      >
         <div className="absolute -top-10 -right-10 opacity-10 rotate-12 transition-transform duration-1000 group-hover:scale-150">
           <MessageSquare size={120} />
         </div>
         
         <div className="flex items-center gap-3 mb-2 relative z-10">
-          <div className="w-8 h-8 bg-white/20 rounded-xl flex items-center justify-center">
-            <Heart size={16} fill="white" />
+          <div className="w-8 h-8 bg-white/30 rounded-xl flex items-center justify-center">
+            <Heart size={16} />
           </div>
           <h3 className="font-display font-bold text-xl">{content.title || '給我留言'}</h3>
         </div>
@@ -302,14 +311,15 @@ function RenderElement({ el, onSendAnon, anonMessage, setAnonMessage, sent, isRe
             value={anonMessage}
             onChange={(e) => setAnonMessage(e.target.value)}
             rows={3}
-            className="w-full bg-white/10 border border-white/20 rounded-[2rem] p-5 outline-none focus:ring-4 ring-white/5 placeholder:text-white/30 text-white resize-none"
+            className="w-full bg-white/30 border border-white/50 rounded-[2rem] p-5 outline-none focus:ring-4 ring-white/20 placeholder:text-current/40 text-current resize-none"
           />
           <button 
             onClick={onSendAnon}
             disabled={sent || !anonMessage.trim()}
+            style={{ backgroundColor: globalStyles?.componentBorderColor, color: globalStyles?.componentBackgroundColor }}
             className={cn(
               "w-full py-4 rounded-[1.5rem] font-black uppercase tracking-widest transition-all scale-100 active:scale-95 flex items-center justify-center gap-2",
-              sent ? "bg-green-500 text-white" : "bg-cat-blue text-white hover:bg-white hover:text-chocolate"
+              sent ? "bg-green-500 text-white" : "hover:opacity-90"
             )}
           >
             {sent ? <><CheckCircle2 /> 已傳送</> : <><Send size={18} /> 送出悄悄話</>}

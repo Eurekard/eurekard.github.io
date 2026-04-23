@@ -31,8 +31,15 @@
 }
 
 .embed-container iframe, .pointer-events-none iframe {
-  width: 100%;
+  width: 100% !important;
+  max-width: 100%;
   border: none;
   border-radius: 1.5rem;
   background: white;
+}
+
+.stable-embed-html iframe {
+  width: 100% !important;
+  max-width: 100%;
+  display: block;
 }

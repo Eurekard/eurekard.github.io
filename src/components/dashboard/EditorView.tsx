@@ -108,7 +108,7 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
   const pageStyle = toGlobalPageStyle(globalStyles);
 
   return (
-    <div style={pageStyle} className="relative min-h-[calc(100vh-73px)] w-full overflow-x-hidden bg-cream flex justify-center">
+    <div className="relative min-h-[calc(100vh-73px)] w-full overflow-x-hidden bg-cream flex justify-center">
       
       {/* Decorative Blobs (Same as Profile) */}
       <div className="absolute top-0 left-0 w-full h-full pointer-events-none overflow-hidden select-none">
@@ -117,79 +117,82 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
       </div>
 
       {/* 1:1 Canvas (Matches Profile.tsx EXACTLY) */}
-      <div 
-        className="w-full max-w-[480px] min-h-full py-20 px-6 relative z-10"
+      <div
+        style={pageStyle}
+        className="w-full min-h-full py-20 px-6 relative z-10 rounded-[2.5rem]"
         onClick={() => setSelectedId(null)} // Click outside to deselect
       >
-        <div 
-          className="text-center mb-12 cursor-pointer transition-transform hover:scale-105 active:scale-95" 
-          onClick={(e) => { e.stopPropagation(); setSelectedId('profile'); }}
-        >
-          <motion.div 
-            className={cn("w-32 h-32 bg-white rounded-[3rem] mx-auto mb-6 p-1.5 shadow-2xl relative overflow-hidden transition-all", isProfileSelected ? "ring-4 ring-cat-blue" : "")}
+        <div className="w-full max-w-[480px] mx-auto">
+          <div 
+            className="text-center mb-12 cursor-pointer transition-transform hover:scale-105 active:scale-95" 
+            onClick={(e) => { e.stopPropagation(); setSelectedId('profile'); }}
           >
-            <img 
-              src={profileData.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${cardData.uid}`} 
-              alt={profileData.displayName}
-              className="w-full h-full rounded-[2.8rem] bg-cat-blue/10 object-cover"
-            />
-          </motion.div>
-          <div className="space-y-1">
-            <h1 className="text-3xl font-display font-black text-chocolate tracking-tight group flex items-center justify-center gap-1">
-              {profileData.displayName}
-              <Sparkles className="text-cat-blue" size={20} />
-            </h1>
-          </div>
-        </div>
-
-        <Reorder.Group 
-          axis="y" 
-          values={elements} 
-          onReorder={setElements} 
-          className="space-y-6 pb-32" // extra padding for bottom FABs
-        >
-          {elements.length === 0 && (
-            <div className="text-center py-20 text-chocolate/20 font-bold uppercase tracking-widest bg-white/20 rounded-[3rem] border border-dashed border-chocolate/5">
-              這裡目前還沒有任何內容...
-            </div>
-          )}
-
-          {elements.map((el) => (
-            <Reorder.Item 
-              key={el.id} 
-              value={el} 
-              onDragStart={() => setSelectedId(el.id)}
-              onClick={(e) => {
-                e.stopPropagation();
-                setSelectedId(el.id);
-              }}
-              className={cn(
-                "relative transition-all cursor-pointer",
-                selectedId === el.id ? "ring-4 ring-cat-blue/50 rounded-[2.2rem] scale-[1.02]" : "hover:scale-[1.01]"
-              )}
+            <motion.div 
+              className={cn("w-32 h-32 bg-white rounded-[3rem] mx-auto mb-6 p-1.5 shadow-2xl relative overflow-hidden transition-all", isProfileSelected ? "ring-4 ring-cat-blue" : "")}
             >
-              <div className="absolute -left-12 top-1/2 -translate-y-1/2 p-2 text-chocolate/20 hover:text-chocolate/50 transition-colors cursor-move opacity-0 group-hover:opacity-100 xl:opacity-100 flex flex-col items-center gap-2">
-                 <GripVertical size={20} />
+              <img 
+                src={profileData.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${cardData.uid}`} 
+                alt={profileData.displayName}
+                className="w-full h-full rounded-[2.8rem] bg-cat-blue/10 object-cover"
+              />
+            </motion.div>
+            <div className="space-y-1">
+              <h1 className="text-3xl font-display font-black text-chocolate tracking-tight group flex items-center justify-center gap-1">
+                {profileData.displayName}
+                <Sparkles className="text-cat-blue" size={20} />
+              </h1>
+            </div>
+          </div>
+
+          <Reorder.Group 
+            axis="y" 
+            values={elements} 
+            onReorder={setElements} 
+            className="space-y-6 pb-32" // extra padding for bottom FABs
+          >
+            {elements.length === 0 && (
+              <div className="text-center py-20 text-chocolate/20 font-bold uppercase tracking-widest bg-white/20 rounded-[3rem] border border-dashed border-chocolate/5">
+                這裡目前還沒有任何內容...
               </div>
-              
-              {selectedId === el.id && (
-                <div className="absolute -right-4 -top-4 z-20">
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); setElements(elements.filter(item => item.id !== el.id)); setSelectedId(null); }}
-                    className="p-3 bg-red-500 text-white hover:bg-red-600 rounded-full shadow-lg transition-transform hover:scale-110 active:scale-95"
-                  >
-                    <Trash2 size={16} />
-                  </button>
+            )}
+
+            {elements.map((el) => (
+              <Reorder.Item 
+                key={el.id} 
+                value={el} 
+                onDragStart={() => setSelectedId(el.id)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedId(el.id);
+                }}
+                className={cn(
+                  "relative transition-all cursor-pointer",
+                  selectedId === el.id ? "ring-4 ring-cat-blue/50 rounded-[2.2rem] scale-[1.02]" : "hover:scale-[1.01]"
+                )}
+              >
+                <div className="absolute -left-12 top-1/2 -translate-y-1/2 p-2 text-chocolate/20 hover:text-chocolate/50 transition-colors cursor-move opacity-0 group-hover:opacity-100 xl:opacity-100 flex flex-col items-center gap-2">
+                  <GripVertical size={20} />
                 </div>
-              )}
-              
-              {/* Disable interactions inside preview so we don't accidentally navigate or type while dragging */}
-              <div className="pointer-events-none">
-                <ElementPreview el={el} globalStyles={globalStyles} />
-              </div>
-            </Reorder.Item>
-          ))}
-        </Reorder.Group>
+
+                {selectedId === el.id && (
+                  <div className="absolute -right-4 -top-4 z-20">
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); setElements(elements.filter(item => item.id !== el.id)); setSelectedId(null); }}
+                      className="p-3 bg-red-500 text-white hover:bg-red-600 rounded-full shadow-lg transition-transform hover:scale-110 active:scale-95"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                )}
+
+                {/* Disable interactions inside preview so we don't accidentally navigate or type while dragging */}
+                <div className="pointer-events-none">
+                  <ElementPreview el={el} globalStyles={globalStyles} />
+                </div>
+              </Reorder.Item>
+            ))}
+          </Reorder.Group>
+        </div>
       </div>
 
       {/* Floating Action Buttons */}
@@ -349,11 +352,14 @@ function ElementPreview({ el, globalStyles }: { el: CardElement; globalStyles: G
   if (type === 'text') {
     const alignClass = content.align === 'left' ? 'text-left' : content.align === 'right' ? 'text-right' : 'text-center';
     return (
-      <div className={cn(
-        "text-chocolate font-bold leading-tight mx-auto px-4",
-        alignClass,
-        content.size === '6xl' ? 'text-4xl md:text-5xl font-black mb-4' : 'text-lg opacity-80'
-      )}>
+      <div
+        style={{ color: globalStyles.textColor }}
+        className={cn(
+          "font-bold leading-tight mx-auto px-4",
+          alignClass,
+          content.size === '6xl' ? 'text-4xl md:text-5xl font-black mb-4' : 'text-lg opacity-80'
+        )}
+      >
         {content.text}
       </div>
     );
@@ -374,21 +380,30 @@ function ElementPreview({ el, globalStyles }: { el: CardElement; globalStyles: G
 
   if (type === 'anon_box') {
     return (
-      <div className="w-full bg-chocolate p-8 rounded-[3rem] text-white space-y-4 shadow-2xl relative overflow-hidden pointer-events-none">
+      <div
+        style={{
+          ...baseComponentStyle,
+          borderColor: globalStyles.componentBorderColor,
+        }}
+        className="w-full p-8 rounded-[3rem] border space-y-4 shadow-2xl relative overflow-hidden pointer-events-none"
+      >
         <div className="absolute -top-10 -right-10 opacity-10 rotate-12">
           <Heart size={120} />
         </div>
         <div className="flex items-center gap-3 mb-2 relative z-10">
-          <div className="w-8 h-8 bg-white/20 rounded-xl flex items-center justify-center">
-            <Heart size={16} fill="white" />
+          <div className="w-8 h-8 bg-white/30 rounded-xl flex items-center justify-center">
+            <Heart size={16} />
           </div>
           <h3 className="font-display font-bold text-xl">{content.title || '給我留言'}</h3>
         </div>
         <div className="relative z-10 space-y-4">
-          <div className="w-full bg-white/10 border border-white/20 rounded-[2rem] p-5 text-white/30 truncate">
+          <div className="w-full bg-white/30 border border-white/50 rounded-[2rem] p-5 truncate opacity-70">
             {content.placeholder || "在此輸入想說的話..."}
           </div>
-          <div className="w-full py-4 rounded-[1.5rem] font-black uppercase tracking-widest bg-cat-blue text-white flex items-center justify-center gap-2">
+          <div
+            style={{ backgroundColor: globalStyles.componentBorderColor, color: globalStyles.componentBackgroundColor }}
+            className="w-full py-4 rounded-[1.5rem] font-black uppercase tracking-widest flex items-center justify-center gap-2"
+          >
             送出悄悄話
           </div>
         </div>
@@ -415,8 +430,9 @@ function ElementPreview({ el, globalStyles }: { el: CardElement; globalStyles: G
       <div 
         style={{ borderColor: globalStyles.componentBorderColor }}
         className="w-full rounded-[2rem] overflow-hidden shadow-xl border-4 border-white bg-cream flex flex-col items-center justify-center pointer-events-none"
-        dangerouslySetInnerHTML={{ __html: embedHtml }}
-      />
+      >
+        <StableEmbedHtml embedHtml={embedHtml} />
+      </div>
     );
   }
 
@@ -628,7 +644,7 @@ function GlobalStyleControls({ styles, onChange }: { styles: GlobalDesignStyles;
         <div className="space-y-3 pb-1">
           <div className="grid grid-cols-4 gap-2">
             {palette.map((color, index) => (
-              <div key={`${index}-${color}`} className="space-y-1">
+              <div key={`palette-${index}`} className="space-y-1">
                 <input
                   type="color"
                   value={color}
@@ -688,11 +704,11 @@ function PaletteSelector({
     <div className="space-y-2">
       <div className="text-[11px] font-bold text-chocolate/50">{title}</div>
       <div className="grid grid-cols-6 gap-2">
-        {palette.map((color) => {
+        {palette.map((color, index) => {
           const isSelected = color.toLowerCase() === selected.toLowerCase();
           return (
             <button
-              key={`${title}-${color}`}
+              key={`${title}-${index}`}
               onClick={() => onPick(color)}
               className={cn(
                 'h-8 w-8 rounded-md border-2 transition-transform hover:scale-105',
@@ -755,6 +771,13 @@ function CompactImageUploadControl({ onUploadComplete }: { onUploadComplete: (ur
     </label>
   );
 }
+
+const StableEmbedHtml = React.memo(
+  function StableEmbedHtml({ embedHtml }: { embedHtml: string }) {
+    return <div className="w-full stable-embed-html" dangerouslySetInnerHTML={{ __html: embedHtml }} />;
+  },
+  (prev, next) => prev.embedHtml === next.embedHtml
+);
 
 function InspectorControls({ el, onUpdate }: { el: CardElement, onUpdate: (u: any) => void }) {
   const { type, content } = el;
