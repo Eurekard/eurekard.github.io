@@ -1,6 +1,6 @@
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 
-const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
+const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
 
 function getRequiredEnv(name: string): string {
   const value = process.env[name];
@@ -45,7 +45,12 @@ export default async function handler(req: any, res: any) {
 
     const imageBuffer = Buffer.from(dataBase64, 'base64');
     if (imageBuffer.byteLength <= 0 || imageBuffer.byteLength > MAX_UPLOAD_BYTES) {
-      res.status(413).json({ error: 'Compressed file is too large' });
+      console.error(`圖片體積過大: ${imageBuffer.byteLength} bytes`);
+      res.status(413).json({
+        error: '壓縮後的檔案仍超過伺服器限制 (4MB)',
+        maxBytes: MAX_UPLOAD_BYTES,
+        actualBytes: imageBuffer.byteLength,
+      });
       return;
     }
 

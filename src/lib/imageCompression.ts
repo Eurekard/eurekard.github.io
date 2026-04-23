@@ -1,4 +1,5 @@
-const MAX_IMAGE_DIMENSION = 1920;
+const MAX_IMAGE_DIMENSION = 2048;
+const TARGET_MAX_BYTES = 3 * 1024 * 1024;
 const AVIF_QUALITY = 0.62;
 const WEBP_QUALITY = 0.78;
 
@@ -39,37 +40,47 @@ export async function compressImageForWeb(file: File): Promise<CompressionResult
   const image = await loadImage(file);
 
   try {
-    const { width, height } = resizeDimensions(image.naturalWidth || image.width, image.naturalHeight || image.height);
+    let { width, height } = resizeDimensions(image.naturalWidth || image.width, image.naturalHeight || image.height);
+
     const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
-
     const context = canvas.getContext('2d');
-    if (!context) {
-      throw new Error('瀏覽器不支援圖片壓縮');
-    }
+    if (!context) throw new Error('瀏覽器不支援圖片壓縮');
 
-    context.drawImage(image, 0, 0, width, height);
+    const tryEncode = async (mimeType: 'image/webp' | 'image/avif', startQuality: number) => {
+      let q = startQuality;
+      let scale = 1;
+      for (let attempt = 0; attempt < 12; attempt++) {
+        const w = Math.max(1, Math.round(width * scale));
+        const h = Math.max(1, Math.round(height * scale));
+        canvas.width = w;
+        canvas.height = h;
+        context.clearRect(0, 0, w, h);
+        context.imageSmoothingEnabled = true;
+        context.imageSmoothingQuality = 'high';
+        context.drawImage(image, 0, 0, w, h);
 
-    const avifBlob = await canvasToBlob(canvas, 'image/avif', AVIF_QUALITY);
-    if (avifBlob && avifBlob.size > 0) {
-      return {
-        blob: avifBlob,
-        mimeType: 'image/avif',
-        extension: 'avif',
-      };
-    }
+        const blob = await canvasToBlob(canvas, mimeType, q);
+        if (blob && blob.size > 0 && blob.size <= TARGET_MAX_BYTES) {
+          return blob;
+        }
 
-    const webpBlob = await canvasToBlob(canvas, 'image/webp', WEBP_QUALITY);
-    if (webpBlob && webpBlob.size > 0) {
-      return {
-        blob: webpBlob,
-        mimeType: 'image/webp',
-        extension: 'webp',
-      };
-    }
+        // If too large, first reduce quality a bit, then reduce dimensions.
+        if (q > 0.5) {
+          q -= 0.1;
+        } else {
+          scale *= 0.7;
+        }
+      }
+      return null;
+    };
 
-    throw new Error('無法轉換成 AVIF 或 WebP 格式');
+    const webp = await tryEncode('image/webp', WEBP_QUALITY);
+    if (webp) return { blob: webp, mimeType: 'image/webp', extension: 'webp' };
+    
+    const avif = await tryEncode('image/avif', AVIF_QUALITY);
+    if (avif) return { blob: avif, mimeType: 'image/avif', extension: 'avif' };
+
+    throw new Error('圖片壓縮後仍過大，請改用較小的圖片');
   } finally {
     URL.revokeObjectURL(image.src);
   }
