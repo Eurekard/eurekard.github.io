@@ -29,6 +29,18 @@ export interface ElementVisualStyle {
   radius?: number;
 }
 
+export interface GlobalDesignStyles {
+  backgroundImageUrl?: string;
+  backgroundColor?: string;
+  backgroundRepeat?: 'repeat' | 'no-repeat';
+  backgroundSize?: 'cover' | 'contain' | 'auto' | 'stretch';
+  fontFamily?: 'noto-sans-tc' | 'noto-serif-tc' | 'chiron-goround-tc' | 'lxgw-wenkai-tc' | 'system';
+  palette?: string[];
+  textColor?: string;
+  componentBackgroundColor?: string;
+  componentBorderColor?: string;
+}
+
 export interface CardData {
   uid: string;
   username: string;
@@ -38,11 +50,11 @@ export interface CardData {
   };
   published_content: {
     elements: CardElement[];
-    styles: any;
+    styles: GlobalDesignStyles;
   };
   draft_content: {
     elements: CardElement[];
-    styles: any;
+    styles: GlobalDesignStyles;
   };
   interactions?: {
     responsesEnabled?: boolean;

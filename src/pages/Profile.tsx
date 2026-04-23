@@ -7,7 +7,7 @@ import { motion } from 'motion/react';
 import { Heart, Send, Sparkles, ExternalLink, MessageSquare } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { buildEmbedHtmlFromUrl } from '../lib/embed';
-import { toElementStyle } from '../lib/cardStyle';
+import { resolveGlobalStyles, toElementStyle, toGlobalPageStyle } from '../lib/cardStyle';
 import { detectDevice, detectSource, getAnalyticsDay } from '../lib/analytics';
 
 export default function Profile() {
@@ -158,9 +158,11 @@ export default function Profile() {
   }
 
   const elements = data.published_content.elements || [];
+  const globalStyles = resolveGlobalStyles(data.published_content.styles);
+  const pageStyle = toGlobalPageStyle(globalStyles);
 
   return (
-    <div className="min-h-screen bg-cream flex flex-col items-center py-20 px-6 relative overflow-x-hidden">
+    <div style={pageStyle} className="min-h-screen bg-cream flex flex-col items-center py-20 px-6 relative overflow-x-hidden">
       {/* Decorative Blobs */}
       <div className="fixed top-0 left-0 w-full h-full pointer-events-none overflow-hidden">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-cat-blue/10 rounded-full blur-[120px]" />
@@ -211,6 +213,7 @@ export default function Profile() {
               isReplyEnabled={data.interactions?.responsesEnabled !== false}
               publicReplies={publicReplies}
               onTrackClick={handleTrackClick}
+              globalStyles={globalStyles}
             />
           ))}
         </div>
@@ -230,9 +233,14 @@ export default function Profile() {
   );
 }
 
-function RenderElement({ el, onSendAnon, anonMessage, setAnonMessage, sent, isReplyEnabled, publicReplies, onTrackClick }: any) {
+function RenderElement({ el, onSendAnon, anonMessage, setAnonMessage, sent, isReplyEnabled, publicReplies, onTrackClick, globalStyles }: any) {
   const { type, content } = el;
   const visualStyle = toElementStyle(el.style);
+  const baseComponentStyle = {
+    backgroundColor: globalStyles?.componentBackgroundColor,
+    borderColor: globalStyles?.componentBorderColor,
+    color: globalStyles?.textColor,
+  };
 
   if (type === 'text') {
     const alignClass = content.align === 'left' ? 'text-left' : content.align === 'right' ? 'text-right' : 'text-center';
@@ -258,7 +266,7 @@ function RenderElement({ el, onSendAnon, anonMessage, setAnonMessage, sent, isRe
         }}
         target="_blank"
         rel="noopener noreferrer"
-        style={visualStyle}
+        style={{ ...baseComponentStyle, ...visualStyle }}
         className="w-full p-5 bg-white border border-chocolate/5 rounded-[2rem] text-chocolate font-bold flex items-center justify-between group soft-shadow"
       >
         <div className="flex items-center gap-4">
@@ -328,7 +336,7 @@ function RenderElement({ el, onSendAnon, anonMessage, setAnonMessage, sent, isRe
   }
 
   if (type === 'image') {
-    return <img src={content.url} style={visualStyle} className="w-full h-auto rounded-[3rem] shadow-xl border-4 border-white" alt="card image" />;
+    return <img src={content.url} style={{ borderColor: globalStyles?.componentBorderColor, ...visualStyle }} className="w-full h-auto rounded-[3rem] shadow-xl border-4 border-white" alt="card image" />;
   }
 
   if (type === 'embed') {
@@ -336,6 +344,7 @@ function RenderElement({ el, onSendAnon, anonMessage, setAnonMessage, sent, isRe
     if (!embedHtml) return null;
     return (
       <div 
+        style={{ borderColor: globalStyles?.componentBorderColor }}
         className="w-full rounded-[2rem] overflow-hidden shadow-xl border-4 border-white bg-cream flex flex-col items-center justify-center embed-container"
         dangerouslySetInnerHTML={{ __html: embedHtml }}
       />

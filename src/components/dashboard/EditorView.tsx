@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { CardData, CardElement } from '../../types';
-import { Plus, GripVertical, Trash2, Layout, Type, Image as ImageIcon, Link as LinkIcon, Play, Hash, Music, Timer, Heart, Settings2, Palette, Save, Eye, Sparkles, UploadCloud, Loader2 } from 'lucide-react';
+import { CardData, CardElement, GlobalDesignStyles } from '../../types';
+import { Plus, GripVertical, Trash2, Layout, Type, Image as ImageIcon, Link as LinkIcon, Play, Hash, Music, Timer, Heart, Settings2, Palette, Save, Eye, Sparkles, UploadCloud, Loader2, ChevronDown } from 'lucide-react';
 import { motion, Reorder, AnimatePresence } from 'motion/react';
 import { db } from '../../lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
@@ -9,7 +9,7 @@ import { compressImageForWeb } from '../../lib/imageCompression';
 import { uploadImageToR2 } from '../../lib/r2Upload';
 import { useAuth } from '../../context/AuthContext';
 import { buildEmbedHtmlFromUrl } from '../../lib/embed';
-import { toElementStyle } from '../../lib/cardStyle';
+import { DEFAULT_PALETTE, resolveGlobalStyles, toElementStyle, toGlobalPageStyle } from '../../lib/cardStyle';
 
 const ELEMENT_TYPES = [
   { type: 'text', label: '文字', icon: Type },
@@ -25,6 +25,7 @@ const ELEMENT_TYPES = [
 export default function EditorView({ cardData, ownerUid }: { cardData: CardData; ownerUid: string | null }) {
   const { user } = useAuth();
   const [elements, setElements] = useState<CardElement[]>(cardData?.draft_content?.elements || []);
+  const [globalStyles, setGlobalStyles] = useState<GlobalDesignStyles>(resolveGlobalStyles(cardData?.draft_content?.styles));
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [isAddDrawerOpen, setIsAddDrawerOpen] = useState(false);
@@ -37,6 +38,7 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
     if (cardData?.draft_content?.elements) {
       setElements(cardData.draft_content.elements);
     }
+    setGlobalStyles(resolveGlobalStyles(cardData?.draft_content?.styles));
   }, [cardData]);
 
   const handleAdd = (type: string) => {
@@ -76,11 +78,13 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
         },
         draft_content: {
           ...(cardData.draft_content || {}),
-          elements
+          elements,
+          styles: globalStyles,
         },
         published_content: {
           ...(cardData.published_content || {}),
-          elements
+          elements,
+          styles: globalStyles,
         },
         updatedAt: new Date().toISOString()
       }, { merge: true });
@@ -101,9 +105,10 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
 
   const activeElement = elements.find(el => el.id === selectedId);
   const isProfileSelected = selectedId === 'profile';
+  const pageStyle = toGlobalPageStyle(globalStyles);
 
   return (
-    <div className="relative min-h-[calc(100vh-73px)] w-full overflow-x-hidden bg-cream flex justify-center">
+    <div style={pageStyle} className="relative min-h-[calc(100vh-73px)] w-full overflow-x-hidden bg-cream flex justify-center">
       
       {/* Decorative Blobs (Same as Profile) */}
       <div className="absolute top-0 left-0 w-full h-full pointer-events-none overflow-hidden select-none">
@@ -180,7 +185,7 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
               
               {/* Disable interactions inside preview so we don't accidentally navigate or type while dragging */}
               <div className="pointer-events-none">
-                <ElementPreview el={el} />
+                <ElementPreview el={el} globalStyles={globalStyles} />
               </div>
             </Reorder.Item>
           ))}
@@ -192,9 +197,9 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
         <button 
           onClick={handleSave}
           disabled={saving}
-          className="h-14 px-8 rounded-full flex items-center justify-center gap-2 bg-chocolate text-white font-bold transition-all shadow-xl hover:scale-105 active:scale-95 disabled:opacity-50 disabled:hover:scale-100 truncate"
+          className="w-14 h-14 rounded-full flex items-center justify-center gap-2 bg-chocolate text-white font-bold transition-all shadow-xl hover:scale-105 active:scale-95 disabled:opacity-50 disabled:hover:scale-100 truncate"
         >
-          <Save size={20} />
+          <Save size={24} />
           {saving ? '保存中...' : ''}
         </button>
         <button 
@@ -219,16 +224,11 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
             className="fixed top-0 left-0 h-[100vh] w-80 bg-white border-r border-chocolate/5 flex flex-col p-6 overflow-y-auto shadow-2xl z-50"
           >
             <div className="mb-8 flex items-center justify-between">
-              <h3 className="text-sm font-bold text-chocolate/40 uppercase tracking-widest">全局樣式</h3>
+              <h3 className="text-sm font-bold text-chocolate/40 uppercase tracking-widest">全局網站設計</h3>
               <button onClick={() => setIsAddDrawerOpen(false)} className="visible md:hidden p-2 text-chocolate/50 hover:bg-cream rounded-full"><Plus size={24} className="rotate-45" /></button>
             </div>
-            <div className="grid grid-cols-2 gap-2 mb-8">
-              <button className="p-3 bg-cream rounded-xl flex flex-col items-center justify-center gap-2 border border-chocolate/5 text-xs font-bold hover:bg-chocolate hover:text-white transition-colors">
-                <Palette size={18} /> 主題顏色
-              </button>
-              <button className="p-3 bg-cream rounded-xl flex flex-col items-center justify-center gap-2 border border-chocolate/5 text-xs font-bold hover:bg-chocolate hover:text-white transition-colors">
-                <Type size={18} /> 全局字體
-              </button>
+            <div className="space-y-4 mb-8">
+              <GlobalStyleControls styles={globalStyles} onChange={setGlobalStyles} />
             </div>
 
             <h3 className="text-sm font-bold text-chocolate/40 uppercase tracking-widest mb-4">新增元素</h3>
@@ -337,9 +337,14 @@ function getInitialContent(type: string) {
   }
 }
 
-function ElementPreview({ el }: { el: CardElement }) {
+function ElementPreview({ el, globalStyles }: { el: CardElement; globalStyles: GlobalDesignStyles }) {
   const { type, content } = el;
   const visualStyle = toElementStyle(el.style);
+  const baseComponentStyle = {
+    backgroundColor: globalStyles.componentBackgroundColor,
+    borderColor: globalStyles.componentBorderColor,
+    color: globalStyles.textColor,
+  };
 
   if (type === 'text') {
     const alignClass = content.align === 'left' ? 'text-left' : content.align === 'right' ? 'text-right' : 'text-center';
@@ -356,7 +361,7 @@ function ElementPreview({ el }: { el: CardElement }) {
 
   if (type === 'button') {
     return (
-      <div style={visualStyle} className="w-full p-5 bg-white border border-chocolate/5 rounded-[2rem] text-chocolate font-bold flex items-center justify-between group soft-shadow pointer-events-none">
+      <div style={{ ...baseComponentStyle, ...visualStyle }} className="w-full p-5 bg-white border border-chocolate/5 rounded-[2rem] text-chocolate font-bold flex items-center justify-between group soft-shadow pointer-events-none">
         <div className="flex items-center gap-4">
           <div className="w-10 h-10 bg-cream rounded-2xl flex items-center justify-center text-cat-blue">
             <LinkIcon size={18} />
@@ -392,7 +397,7 @@ function ElementPreview({ el }: { el: CardElement }) {
   }
 
   if (type === 'image') {
-    return <img src={content.url} style={visualStyle} className="w-full h-auto rounded-[3rem] shadow-xl border-4 border-white pointer-events-none" alt="preview" />;
+    return <img src={content.url} style={{ borderColor: globalStyles.componentBorderColor, ...visualStyle }} className="w-full h-auto rounded-[3rem] shadow-xl border-4 border-white pointer-events-none" alt="preview" />;
   }
   
   if (type === 'embed') {
@@ -408,6 +413,7 @@ function ElementPreview({ el }: { el: CardElement }) {
     }
     return (
       <div 
+        style={{ borderColor: globalStyles.componentBorderColor }}
         className="w-full rounded-[2rem] overflow-hidden shadow-xl border-4 border-white bg-cream flex flex-col items-center justify-center pointer-events-none"
         dangerouslySetInnerHTML={{ __html: embedHtml }}
       />
@@ -505,6 +511,248 @@ function ImageUploadControl({ currentUrl, onUploadComplete }: { currentUrl?: str
         <div className="flex-grow border-t border-chocolate/5"></div>
       </div>
     </div>
+  );
+}
+
+function GlobalStyleControls({ styles, onChange }: { styles: GlobalDesignStyles; onChange: (next: GlobalDesignStyles) => void }) {
+  const [openPanels, setOpenPanels] = useState<{ background: boolean; typography: boolean; palette: boolean }>({
+    background: true,
+    typography: false,
+    palette: false,
+  });
+
+  const update = <K extends keyof GlobalDesignStyles>(key: K, value: GlobalDesignStyles[K]) => {
+    onChange({ ...styles, [key]: value });
+  };
+
+  const palette = (styles.palette && styles.palette.length > 0 ? styles.palette : DEFAULT_PALETTE).slice(0, 10);
+
+  const updatePalette = (index: number, color: string) => {
+    const next = [...palette];
+    next[index] = color;
+    onChange({ ...styles, palette: next });
+  };
+
+  const addPalette = () => {
+    if (palette.length >= 10) return;
+    onChange({ ...styles, palette: [...palette, '#FFFFFF'] });
+  };
+
+  const removePalette = (index: number) => {
+    if (palette.length <= 1) return;
+    onChange({ ...styles, palette: palette.filter((_, i) => i !== index) });
+  };
+
+  const togglePanel = (key: 'background' | 'typography' | 'palette') => {
+    setOpenPanels((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  return (
+    <div className="space-y-4 rounded-2xl border border-chocolate/10 p-4 bg-cream/40">
+      <AccordionHeader title="背景設定" isOpen={openPanels.background} onClick={() => togglePanel('background')} />
+      {openPanels.background && (
+        <div className="space-y-3 pb-2">
+          <CompactImageUploadControl onUploadComplete={(url) => update('backgroundImageUrl', url)} />
+          <input
+            value={styles.backgroundImageUrl || ''}
+            onChange={(e) => update('backgroundImageUrl', e.target.value)}
+            className="w-full p-3 bg-white rounded-xl text-xs outline-none focus:ring-2 ring-cat-blue/20"
+            placeholder="背景圖片網址（可留白）"
+          />
+          <PaletteSelector
+            title="背景色"
+            palette={palette}
+            selected={styles.backgroundColor || '#F5F5DC'}
+            onPick={(color) => update('backgroundColor', color)}
+          />
+          <div className="grid grid-cols-2 gap-2">
+            <select
+              value={styles.backgroundRepeat || 'no-repeat'}
+              onChange={(e) => update('backgroundRepeat', e.target.value as any)}
+              className="w-full p-3 bg-white rounded-xl text-xs outline-none"
+            >
+              <option value="no-repeat">不重複</option>
+              <option value="repeat">平鋪重複</option>
+            </select>
+            <select
+              value={styles.backgroundSize || 'cover'}
+              onChange={(e) => update('backgroundSize', e.target.value as any)}
+              className="w-full p-3 bg-white rounded-xl text-xs outline-none"
+            >
+              <option value="cover">裁切填滿</option>
+              <option value="contain">完整顯示</option>
+              <option value="stretch">拉伸</option>
+              <option value="auto">原尺寸</option>
+            </select>
+          </div>
+        </div>
+      )}
+
+      <AccordionHeader title="字體與主色" isOpen={openPanels.typography} onClick={() => togglePanel('typography')} />
+      {openPanels.typography && (
+        <div className="space-y-3 pb-2">
+          <select
+            value={styles.fontFamily || 'system'}
+            onChange={(e) => update('fontFamily', e.target.value as any)}
+            className="w-full p-3 bg-white rounded-xl text-xs outline-none"
+          >
+            <option value="system">系統字體</option>
+            <option value="noto-sans-tc">黑體 Noto Sans TC</option>
+            <option value="noto-serif-tc">襯線 Noto Serif TC</option>
+            <option value="chiron-goround-tc">圓體 Chiron GoRound TC</option>
+            <option value="lxgw-wenkai-tc">楷體 LXGW WenKai TC</option>
+          </select>
+          <PaletteSelector
+            title="文字色"
+            palette={palette}
+            selected={styles.textColor || '#3D2B1F'}
+            onPick={(color) => update('textColor', color)}
+          />
+          <PaletteSelector
+            title="元件底色"
+            palette={palette}
+            selected={styles.componentBackgroundColor || '#FFFFFF'}
+            onPick={(color) => update('componentBackgroundColor', color)}
+          />
+          <PaletteSelector
+            title="元件邊框"
+            palette={palette}
+            selected={styles.componentBorderColor || '#3D2B1F'}
+            onPick={(color) => update('componentBorderColor', color)}
+          />
+        </div>
+      )}
+
+      <AccordionHeader title="主題調色盤" isOpen={openPanels.palette} onClick={() => togglePanel('palette')} />
+      {openPanels.palette && (
+        <div className="space-y-3 pb-1">
+          <div className="grid grid-cols-4 gap-2">
+            {palette.map((color, index) => (
+              <div key={`${index}-${color}`} className="space-y-1">
+                <input
+                  type="color"
+                  value={color}
+                  onChange={(e) => updatePalette(index, e.target.value)}
+                  className="h-12 w-full cursor-pointer rounded-lg border border-chocolate/10 bg-transparent"
+                />
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => removePalette(index)}
+                    className="p-1 rounded-md text-red-500 hover:bg-red-50 disabled:opacity-30"
+                    disabled={palette.length <= 1}
+                    title="刪除顏色"
+                  >
+                    <Trash2 size={17} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <button
+            onClick={addPalette}
+            disabled={palette.length >= 10}
+            className="w-full p-3 rounded-xl text-xs font-bold bg-white border border-chocolate/10 hover:bg-chocolate hover:text-white transition-colors disabled:opacity-40"
+          >
+            新增顏色
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AccordionHeader({ title, isOpen, onClick }: { title: string; isOpen: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="w-full flex items-center justify-between p-3 rounded-xl bg-white border border-chocolate/10 text-xs font-black text-chocolate/70"
+    >
+      <span>{title}</span>
+      <ChevronDown size={16} className={cn('transition-transform', isOpen ? 'rotate-180' : 'rotate-0')} />
+    </button>
+  );
+}
+
+function PaletteSelector({
+  title,
+  palette,
+  selected,
+  onPick,
+}: {
+  title: string;
+  palette: string[];
+  selected: string;
+  onPick: (color: string) => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="text-[11px] font-bold text-chocolate/50">{title}</div>
+      <div className="grid grid-cols-6 gap-2">
+        {palette.map((color) => {
+          const isSelected = color.toLowerCase() === selected.toLowerCase();
+          return (
+            <button
+              key={`${title}-${color}`}
+              onClick={() => onPick(color)}
+              className={cn(
+                'h-8 w-8 rounded-md border-2 transition-transform hover:scale-105',
+                isSelected ? 'border-chocolate shadow-md' : 'border-white/70'
+              )}
+              style={{ backgroundColor: color }}
+              title={color}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function CompactImageUploadControl({ onUploadComplete }: { onUploadComplete: (url: string) => void }) {
+  const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !file.type.startsWith('image/')) return;
+
+    setUploading(true);
+    setProgress(5);
+
+    try {
+      const compressed = await compressImageForWeb(file);
+      const safeBaseName = file.name.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9._-]/g, '_') || 'bg';
+      const uploadedUrl = await uploadImageToR2({
+        blob: compressed.blob,
+        fileName: safeBaseName,
+        contentType: compressed.mimeType,
+        onProgress: (p) => setProgress(Math.min(99, Math.max(5, p))),
+      });
+      setProgress(100);
+      onUploadComplete(uploadedUrl);
+    } catch (error) {
+      console.error(error);
+      alert('背景上傳失敗，請稍後再試');
+    } finally {
+      setTimeout(() => {
+        setUploading(false);
+        setProgress(0);
+      }, 250);
+    }
+  };
+
+  return (
+    <label className="relative block overflow-hidden rounded-xl border-2 border-dashed border-chocolate/15 bg-white/80 hover:border-cat-blue/60 transition-colors cursor-pointer">
+      <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" disabled={uploading} />
+      <div className="py-4 px-3 text-center">
+        {uploading ? (
+          <div className="text-xs font-bold text-cat-blue">上傳中 {progress}%</div>
+        ) : (
+          <div className="text-xs font-bold text-chocolate/60">上傳背景圖片</div>
+        )}
+      </div>
+      {uploading && <div className="absolute left-0 bottom-0 h-1 bg-cat-blue" style={{ width: `${progress}%` }} />}
+    </label>
   );
 }
 
@@ -613,8 +861,13 @@ function InspectorControls({ el, onUpdate }: { el: CardElement, onUpdate: (u: an
           value={content.url || ''}
           onChange={(e) => {
             const url = e.target.value;
-            handleChange('url', url);
-            handleChange('html', buildEmbedHtmlFromUrl(url));
+            onUpdate({
+              content: {
+                ...content,
+                url,
+                html: buildEmbedHtmlFromUrl(url),
+              },
+            });
           }}
           className="w-full p-4 bg-cream border-none rounded-xl text-sm outline-none focus:ring-2 ring-cat-blue/20"
           placeholder="貼上 YouTube、Spotify 連結"
