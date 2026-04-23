@@ -204,7 +204,7 @@ export default function Onboarding() {
                   className="flex-[2] py-4 bg-chocolate text-white rounded-2xl font-bold soft-shadow hover:bg-chocolate/90 transition-all flex items-center justify-center gap-2"
                 >
                   <Wand2 size={20} />
-                  一鍵生成
+                  完成
                 </button>
               </div>
             </motion.div>

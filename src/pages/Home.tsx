@@ -61,7 +61,7 @@ export default function Home() {
           </h1>
           
           <p className="text-xl text-chocolate/70 mb-12 max-w-xl mx-auto leading-relaxed">
-            Eurekard (尤里卡) 為你打造最具質感的個人入口頁。乾淨的畫布與流暢的體驗，讓每一個深刻的點子都能找到最好的展示舞台。
+            尤里卡為你打造最具質感的個人入口頁。乾淨的畫布與流暢的體驗，讓每一個深刻的點子都能找到最好的展示舞台。
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
