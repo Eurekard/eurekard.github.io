@@ -58,10 +58,10 @@ service cloud.firestore {
       allow create: if isOwner(cardId) && isValidCard(incoming());
       allow update: if isOwner(cardId)
         && isValidCard(incoming())
-        && incoming().uid == existing().uid
+        && incoming().uid == request.auth.uid
         && (
           // Action: Sync
-          incoming().diff(existing()).affectedKeys().hasOnly(['published_content', 'draft_content', 'profile', 'settings', 'updatedAt'])
+          incoming().diff(existing()).affectedKeys().hasOnly(['uid', 'username', 'published_content', 'draft_content', 'profile', 'settings', 'updatedAt'])
         );
       
       // 2.1 Responses Subcollection

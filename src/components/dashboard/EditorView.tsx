@@ -19,7 +19,7 @@ const ELEMENT_TYPES = [
   { type: 'countdown', label: '倒計時', icon: Timer },
 ];
 
-export default function EditorView({ cardData }: { cardData: CardData }) {
+export default function EditorView({ cardData, ownerUid }: { cardData: CardData; ownerUid: string | null }) {
   const [elements, setElements] = useState<CardElement[]>(cardData?.draft_content?.elements || []);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -52,8 +52,9 @@ export default function EditorView({ cardData }: { cardData: CardData }) {
   };
 
   const handleSave = async () => {
+    const targetCardId = ownerUid || cardData.uid;
     setSaving(true);
-    if (cardData.uid === 'demo_user') {
+    if (!ownerUid || targetCardId === 'demo_user' || cardData.uid === 'demo_user') {
       setTimeout(() => {
         alert('測試模式：已模擬儲存發布！(未登入狀態不會寫入資料庫)');
         setSaving(false);
@@ -62,16 +63,28 @@ export default function EditorView({ cardData }: { cardData: CardData }) {
     }
 
     try {
-      await updateDoc(doc(db, 'cards', cardData.uid), {
-        'profile': profileData,
-        'draft_content.elements': elements,
-        'published_content.elements': elements, // For now, sync both
+      await updateDoc(doc(db, 'cards', targetCardId), {
+        uid: targetCardId,
+        username: cardData.username || '',
+        profile: {
+          displayName: profileData.displayName || cardData.username || '',
+          avatarUrl: profileData.avatarUrl || ''
+        },
+        draft_content: {
+          ...(cardData.draft_content || {}),
+          elements
+        },
+        published_content: {
+          ...(cardData.published_content || {}),
+          elements
+        },
         updatedAt: new Date().toISOString()
       });
       alert('已成功保存並發布！');
     } catch (err) {
-      console.error(err);
-      alert('保存失敗');
+      console.error('Save failed:', err);
+      const e = err as { code?: string; message?: string };
+      alert(`保存失敗：${e.code || 'unknown'}${e.message ? `\n${e.message}` : ''}`);
     } finally {
       setSaving(false);
     }

@@ -139,7 +139,7 @@ export default function Dashboard() {
             )}
             {activeTab === 'editor' && (
               <motion.div key="editor" className="flex-1 relative" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                <EditorView cardData={cardData} />
+                <EditorView cardData={cardData} ownerUid={user?.uid || null} />
               </motion.div>
             )}
           </AnimatePresence>
