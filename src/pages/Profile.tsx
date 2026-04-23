@@ -3,11 +3,11 @@ import { useParams, Link } from 'react-router-dom';
 import { db } from '../lib/firebase';
 import { doc, getDoc, collection, addDoc, query, onSnapshot, where } from 'firebase/firestore';
 import { CardData, AnonResponse } from '../types';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { Heart, Send, ExternalLink, MessageSquare } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { buildEmbedHtmlFromUrl } from '../lib/embed';
-import { isHashLink, resolveGlobalStyles, toElementStyle, toGlobalPageStyle } from '../lib/cardStyle';
+import { isHashLink, normalizeLinkTarget, resolveGlobalStyles, toElementStyle, toGlobalPageStyle } from '../lib/cardStyle';
 import { detectDevice, detectSource, getAnalyticsDay } from '../lib/analytics';
 
 export default function Profile() {
@@ -174,7 +174,10 @@ export default function Profile() {
   const fallbackSection = segmented.sections[0]?.hash || 'home';
   const resolvedActiveHash = activeSectionHash || fallbackSection;
   const activeSection = segmented.sections.find((section) => section.hash === resolvedActiveHash) || segmented.sections[0];
-  const visibleElements = [...segmented.headerElements, ...(activeSection?.elements || []), ...segmented.footerElements];
+  const headerElements = segmented.headerElements;
+  const sectionElements = activeSection?.elements || [];
+  const footerElements = segmented.footerElements;
+  const hasAnyVisibleContent = headerElements.length > 0 || sectionElements.length > 0 || footerElements.length > 0;
 
   return (
     <div style={pageStyle} className="min-h-screen bg-cream flex flex-col items-center py-20 px-6 relative overflow-x-hidden">
@@ -202,7 +205,7 @@ export default function Profile() {
             />
           </motion.div>
           <div className="space-y-1">
-            <h1 style={{ color: globalStyles.textColor }} className="text-3xl font-black tracking-tight group flex items-center justify-center gap-1">
+            <h1 style={{ color: globalStyles.textColor, fontFamily: 'inherit' }} className="text-3xl font-black tracking-tight group flex items-center justify-center gap-1">
               {data.profile?.displayName || username}
             </h1>
           </div>
@@ -210,13 +213,56 @@ export default function Profile() {
 
         {/* Dynamic Content */}
         <div className="space-y-6">
-          {visibleElements.length === 0 && (
+          {!hasAnyVisibleContent && (
             <div className="text-center py-20 text-chocolate/20 font-bold uppercase tracking-widest bg-white/20 rounded-[3rem] border border-dashed border-chocolate/5">
               這裡目前還沒有任何內容...
             </div>
           )}
-          
-          {visibleElements.map((el) => (
+
+          {headerElements.map((el) => (
+            <RenderElement
+              key={el.id}
+              el={el}
+              onSendAnon={() => handleSendAnon(data.uid)}
+              anonMessage={anonMessage}
+              setAnonMessage={setAnonMessage}
+              sent={sent}
+              isReplyEnabled={data.interactions?.responsesEnabled !== false}
+              publicReplies={publicReplies}
+              onTrackClick={handleTrackClick}
+              globalStyles={globalStyles}
+              onHashNavigate={(hash) => setActiveSectionHash(hash.replace(/^#/, ''))}
+            />
+          ))}
+
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={`section-${resolvedActiveHash}`}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.22, ease: 'easeInOut' }}
+              className="space-y-6"
+            >
+              {sectionElements.map((el) => (
+                <RenderElement
+                  key={el.id}
+                  el={el}
+                  onSendAnon={() => handleSendAnon(data.uid)}
+                  anonMessage={anonMessage}
+                  setAnonMessage={setAnonMessage}
+                  sent={sent}
+                  isReplyEnabled={data.interactions?.responsesEnabled !== false}
+                  publicReplies={publicReplies}
+                  onTrackClick={handleTrackClick}
+                  globalStyles={globalStyles}
+                  onHashNavigate={(hash) => setActiveSectionHash(hash.replace(/^#/, ''))}
+                />
+              ))}
+            </motion.div>
+          </AnimatePresence>
+
+          {footerElements.map((el) => (
             <RenderElement
               key={el.id}
               el={el}
@@ -274,7 +320,8 @@ function RenderElement({ el, onSendAnon, anonMessage, setAnonMessage, sent, isRe
   }
 
   if (type === 'button') {
-    const url = content.url || '#';
+    const rawUrl = content.url || '';
+    const url = normalizeLinkTarget(rawUrl);
     const hashLink = isHashLink(url);
     const buttonStyle = {
       ...baseComponentStyle,
@@ -292,7 +339,11 @@ function RenderElement({ el, onSendAnon, anonMessage, setAnonMessage, sent, isRe
           if (hashLink) {
             event.preventDefault();
             const nextHash = url.replace(/^#/, '');
-            window.location.hash = nextHash;
+            if (url === '#') {
+              window.history.pushState(null, '', `${window.location.pathname}#`);
+            } else {
+              window.location.hash = nextHash;
+            }
             onHashNavigate(`#${nextHash}`);
           }
         }}
@@ -375,7 +426,7 @@ function RenderElement({ el, onSendAnon, anonMessage, setAnonMessage, sent, isRe
   }
 
   if (type === 'image') {
-    return <img src={content.url} style={{ borderColor: globalStyles?.componentBorderColor, ...visualStyle }} className="w-full h-auto rounded-[3rem] border-4 border-white" alt="card image" />;
+    return <img src={content.url} style={{ borderColor: globalStyles?.componentBorderColor, ...visualStyle }} className="w-full h-auto rounded-[3rem] border" alt="card image" />;
   }
 
   if (type === 'section') {
@@ -386,40 +437,14 @@ function RenderElement({ el, onSendAnon, anonMessage, setAnonMessage, sent, isRe
     const items = Array.isArray(content.items) ? content.items : [];
     return (
       <div style={{ ...baseComponentStyle, ...visualStyle }} className="w-full p-5 rounded-[2rem] border">
-        <details className="group">
-          <summary className="cursor-pointer list-none flex items-center justify-between gap-3">
-            <span style={{ color: globalStyles?.textColor }} className="font-bold">{content.label || '下拉選單'}</span>
-            <span className="opacity-60 group-open:rotate-180 transition-transform">⌄</span>
-          </summary>
-          <div className="mt-4 space-y-2">
-            {items.length === 0 ? (
-              <div className="text-sm opacity-60">尚未新增選項</div>
-            ) : (
-              items.map((item: { label?: string; url?: string }, index: number) => (
-                <a
-                  key={`dropdown-public-${index}`}
-                  href={item.url || '#'}
-                  onClick={(event) => {
-                    void onTrackClick(el.id);
-                    if (isHashLink(item.url || '')) {
-                      event.preventDefault();
-                      const nextHash = (item.url || '').replace(/^#/, '');
-                      window.location.hash = nextHash;
-                      onHashNavigate(`#${nextHash}`);
-                    }
-                  }}
-                  style={{
-                    backgroundColor: globalStyles?.componentBackgroundColor,
-                    color: globalStyles?.textColor,
-                  }}
-                  className="block px-4 py-3 rounded-xl text-sm hover:opacity-90"
-                >
-                  {item.label || `項目 ${index + 1}`}
-                </a>
-              ))
-            )}
-          </div>
-        </details>
+        <AnimatedDropdown
+          label={content.label || '下拉選單'}
+          items={items}
+          textColor={globalStyles?.textColor}
+          itemBackgroundColor={globalStyles?.componentBackgroundColor}
+          onTrackClick={() => void onTrackClick(el.id)}
+          onHashNavigate={onHashNavigate}
+        />
       </div>
     );
   }
@@ -448,7 +473,7 @@ function RenderElement({ el, onSendAnon, anonMessage, setAnonMessage, sent, isRe
     return (
       <div
         style={{ borderColor: globalStyles?.componentBorderColor }}
-        className="w-full rounded-[2rem] overflow-hidden border-4 border-white bg-cream flex flex-col items-center justify-center embed-container"
+        className="w-full rounded-[2rem] overflow-hidden border bg-cream flex flex-col items-center justify-center embed-container"
         dangerouslySetInnerHTML={{ __html: embedHtml }}
       />
     );
@@ -523,6 +548,87 @@ function splitElementsBySection(elements: any[]) {
   }
 
   return { headerElements, footerElements, sections };
+}
+
+function AnimatedDropdown({
+  label,
+  items,
+  textColor,
+  itemBackgroundColor,
+  onTrackClick,
+  onHashNavigate,
+}: {
+  label: string;
+  items: Array<{ label?: string; url?: string }>;
+  textColor?: string;
+  itemBackgroundColor?: string;
+  onTrackClick: () => void;
+  onHashNavigate: (hash: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        className="w-full cursor-pointer list-none flex items-center justify-between gap-3"
+      >
+        <span style={{ color: textColor }} className="font-bold">{label}</span>
+        <span className={cn('opacity-60 transition-transform', open ? 'rotate-180' : 'rotate-0')}>⌄</span>
+      </button>
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
+            className="overflow-hidden"
+          >
+            <div className="mt-4 space-y-2">
+              {items.length === 0 ? (
+                <div className="text-sm opacity-60">尚未新增選項</div>
+              ) : (
+                items.map((item, index) => {
+                  const resolvedUrl = normalizeLinkTarget(item.url || '');
+                  const hashLink = isHashLink(resolvedUrl);
+                  return (
+                    <a
+                      key={`dropdown-public-${index}`}
+                      href={resolvedUrl}
+                      onClick={(event) => {
+                        onTrackClick();
+                        if (hashLink) {
+                          event.preventDefault();
+                          const nextHash = resolvedUrl.replace(/^#/, '');
+                          if (resolvedUrl === '#') {
+                            window.history.pushState(null, '', `${window.location.pathname}#`);
+                          } else {
+                            window.location.hash = nextHash;
+                          }
+                          onHashNavigate(`#${nextHash}`);
+                        }
+                      }}
+                      target={hashLink ? undefined : '_blank'}
+                      rel={hashLink ? undefined : 'noopener noreferrer'}
+                      style={{
+                        backgroundColor: itemBackgroundColor,
+                        color: textColor,
+                      }}
+                      className="block px-4 py-3 rounded-xl text-sm hover:opacity-90"
+                    >
+                      {item.label || `項目 ${index + 1}`}
+                    </a>
+                  );
+                })
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
 }
 
 function LightbulbLogo() {

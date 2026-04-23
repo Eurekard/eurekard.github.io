@@ -172,7 +172,7 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
               />
             </motion.div>
             <div className="space-y-1">
-              <h1 style={{ color: globalStyles.textColor }} className="text-3xl font-black tracking-tight group flex items-center justify-center gap-1">
+              <h1 style={{ color: globalStyles.textColor, fontFamily: 'inherit' }} className="text-3xl font-black tracking-tight group flex items-center justify-center gap-1">
                 {profileData.displayName}
               </h1>
             </div>
@@ -359,7 +359,7 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
 function getInitialContent(type: string) {
   switch(type) {
     case 'text': return { text: '輸入文字内容...', size: 'md', align: 'center' };
-    case 'button': return { label: '點擊按鈕', url: 'https://', icon: 'Link' };
+    case 'button': return { label: '點擊按鈕', url: '', icon: 'Link' };
     case 'image': return { url: 'https://images.unsplash.com/photo-1493612276216-ee3925520721?w=800&auto=format&fit=crop', alt: '靈感圖片' };
     case 'section': return { name: 'home', title: '首頁區段', kind: 'normal' };
     case 'dropdown': return {
@@ -459,17 +459,25 @@ function ElementPreview({ el, globalStyles }: { el: CardElement; globalStyles: G
   }
 
   if (type === 'image') {
-    return <img src={content.url} style={{ borderColor: globalStyles.componentBorderColor, ...visualStyle }} className="w-full h-auto rounded-[3rem] border-4 border-white pointer-events-none" alt="preview" />;
+    return <img src={content.url} style={{ borderColor: globalStyles.componentBorderColor, ...visualStyle }} className="w-full h-auto rounded-[3rem] border pointer-events-none" alt="preview" />;
   }
 
   if (type === 'section') {
     const marker = content.kind === 'header' ? '#header' : content.kind === 'footer' ? '#footer' : `#${(content.name || 'section').replace(/^#/, '')}`;
+    const markerColor = globalStyles.textColor || globalStyles.componentBorderColor;
+    const markerBg = globalStyles.componentBackgroundColor || globalStyles.backgroundColor;
     return (
-      <div
-        style={{ borderColor: globalStyles.componentBorderColor, color: globalStyles.textColor, ...visualStyle }}
-        className="relative left-1/2 -translate-x-1/2 w-screen max-w-none py-1 border-y border-dashed text-center bg-transparent"
-      >
-        <div className="text-[11px] font-black tracking-widest uppercase">{marker}</div>
+      <div style={{ backgroundColor: markerBg }} className="relative left-1/2 -translate-x-1/2 w-screen max-w-none py-2">
+        <div className="flex items-center gap-3 px-3">
+          <div style={{ borderColor: markerColor }} className="h-0 flex-1 border-t border-dashed" />
+          <span
+            style={{ color: markerColor, backgroundColor: markerBg, ...visualStyle }}
+            className="px-2 text-[11px] font-black tracking-widest uppercase leading-none"
+          >
+            {marker}
+          </span>
+          <div style={{ borderColor: markerColor }} className="h-0 flex-1 border-t border-dashed" />
+        </div>
       </div>
     );
   }
@@ -516,7 +524,7 @@ function ElementPreview({ el, globalStyles }: { el: CardElement; globalStyles: G
     const embedHtml = content.html || buildEmbedHtmlFromUrl(content.url || '');
     if (!embedHtml) {
       return (
-        <div className="w-full rounded-[2rem] overflow-hidden border-4 border-white bg-cream flex flex-col items-center justify-center p-8 text-center pointer-events-none">
+        <div className="w-full rounded-[2rem] overflow-hidden border bg-cream flex flex-col items-center justify-center p-8 text-center pointer-events-none">
            <Play className="text-chocolate/20 mb-4" size={48} />
            <p className="font-bold text-chocolate">嵌入內容區域</p>
            <p className="text-xs text-chocolate/50 font-mono mt-2 truncate w-full">請在屬性面板貼上影音連結或 iframe 代碼</p>
@@ -526,7 +534,7 @@ function ElementPreview({ el, globalStyles }: { el: CardElement; globalStyles: G
     return (
       <div 
         style={{ borderColor: globalStyles.componentBorderColor }}
-        className="w-full rounded-[2rem] overflow-hidden border-4 border-white bg-cream flex flex-col items-center justify-center pointer-events-none"
+        className="w-full rounded-[2rem] overflow-hidden border bg-cream flex flex-col items-center justify-center pointer-events-none"
       >
         <StableEmbedHtml embedHtml={embedHtml} />
       </div>
@@ -969,12 +977,12 @@ function InspectorControls({ el, onUpdate }: { el: CardElement, onUpdate: (u: an
           onChange={(e) => handleChange('label', e.target.value)}
           className="w-full p-4 bg-cream border-none rounded-xl text-sm outline-none focus:ring-2 ring-cat-blue/20"
         />
-        <label className="block text-xs font-bold text-chocolate/40">連結 URL</label>
+        <label className="block text-xs font-bold text-chocolate/40">連結（可輸入網址或區段錨點）</label>
         <input 
           value={content.url}
           onChange={(e) => handleChange('url', e.target.value)}
           className="w-full p-4 bg-cream border-none rounded-xl text-sm outline-none focus:ring-2 ring-cat-blue/20"
-          placeholder="https://"
+          placeholder="例如：www.facebook.com 或 #home"
         />
       </div>
     );

@@ -62,7 +62,17 @@ export function normalizeSectionAnchor(raw: string): string {
 }
 
 export function isHashLink(url?: string): boolean {
-  return typeof url === 'string' && /^#[a-zA-Z0-9_-]+$/.test(url.trim());
+  return typeof url === 'string' && /^#([a-zA-Z0-9_-]+)?$/.test(url.trim());
+}
+
+export function normalizeLinkTarget(raw?: string): string {
+  const value = (raw || '').trim();
+  if (!value) return '#';
+  if (value === '#') return '#';
+  if (isHashLink(value)) return value;
+  if (/^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(value)) return value;
+  if (value.startsWith('//')) return `https:${value}`;
+  return `https://${value}`;
 }
 
 export function resolveGlobalStyles(input?: Partial<GlobalDesignStyles>): GlobalDesignStyles {
