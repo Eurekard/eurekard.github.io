@@ -4,10 +4,10 @@ import { db } from '../lib/firebase';
 import { doc, getDoc, collection, addDoc, query, onSnapshot, where } from 'firebase/firestore';
 import { CardData, AnonResponse } from '../types';
 import { motion } from 'motion/react';
-import { Heart, Send, Sparkles, ExternalLink, MessageSquare } from 'lucide-react';
+import { Heart, Send, ExternalLink, MessageSquare } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { buildEmbedHtmlFromUrl } from '../lib/embed';
-import { resolveGlobalStyles, toElementStyle, toGlobalPageStyle } from '../lib/cardStyle';
+import { isHashLink, resolveGlobalStyles, toElementStyle, toGlobalPageStyle } from '../lib/cardStyle';
 import { detectDevice, detectSource, getAnalyticsDay } from '../lib/analytics';
 
 export default function Profile() {
@@ -18,6 +18,7 @@ export default function Profile() {
   const [anonMessage, setAnonMessage] = useState('');
   const [sent, setSent] = useState(false);
   const [publicReplies, setPublicReplies] = useState<AnonResponse[]>([]);
+  const [activeSectionHash, setActiveSectionHash] = useState('');
 
   useEffect(() => {
     // Set dynamic favicon
@@ -107,6 +108,15 @@ export default function Profile() {
     });
   }, [data?.uid]);
 
+  useEffect(() => {
+    const syncHash = () => {
+      setActiveSectionHash((window.location.hash || '').replace(/^#/, ''));
+    };
+    syncHash();
+    window.addEventListener('hashchange', syncHash);
+    return () => window.removeEventListener('hashchange', syncHash);
+  }, []);
+
   const handleTrackClick = async (targetId?: string) => {
     if (!data?.uid) return;
 
@@ -148,9 +158,9 @@ export default function Profile() {
     return (
       <div className="h-screen w-screen flex flex-col items-center justify-center bg-cream p-8 text-center space-y-6">
         <div className="text-8xl">💡</div>
-        <h1 className="text-4xl font-display font-bold text-chocolate">哎呀！找不到這個名片</h1>
+        <h1 className="text-4xl font-bold text-chocolate">哎呀！找不到這個名片</h1>
         <p className="text-chocolate/60">這個連結可能已經失效，或是用戶修改了專屬網址。</p>
-        <Link to="/" className="px-8 py-4 bg-chocolate text-white rounded-2xl font-bold soft-shadow">
+        <Link to="/" className="px-8 py-4 bg-chocolate text-white rounded-2xl font-bold">
           返回 Eurekard 首頁
         </Link>
       </div>
@@ -160,6 +170,11 @@ export default function Profile() {
   const elements = data.published_content.elements || [];
   const globalStyles = resolveGlobalStyles(data.published_content.styles);
   const pageStyle = toGlobalPageStyle(globalStyles);
+  const segmented = splitElementsBySection(elements);
+  const fallbackSection = segmented.sections[0]?.hash || 'home';
+  const resolvedActiveHash = activeSectionHash || fallbackSection;
+  const activeSection = segmented.sections.find((section) => section.hash === resolvedActiveHash) || segmented.sections[0];
+  const visibleElements = [...segmented.headerElements, ...(activeSection?.elements || []), ...segmented.footerElements];
 
   return (
     <div style={pageStyle} className="min-h-screen bg-cream flex flex-col items-center py-20 px-6 relative overflow-x-hidden">
@@ -178,31 +193,30 @@ export default function Profile() {
         <div className="text-center mb-12">
           <motion.div 
             whileHover={{ scale: 1.05 }}
-            className="w-32 h-32 bg-white rounded-[3rem] mx-auto mb-6 p-1.5 shadow-2xl relative overflow-hidden"
+            className="w-32 h-32 rounded-[3rem] mx-auto mb-6 p-1.5 relative overflow-hidden"
           >
             <img 
               src={data.profile?.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.uid}`} 
               alt={data.profile?.displayName || username}
-              className="w-full h-full rounded-[2.8rem] bg-cat-blue/10 object-cover"
+              className="w-full h-full rounded-[2.8rem] object-cover"
             />
           </motion.div>
           <div className="space-y-1">
-            <h1 className="text-3xl font-display font-black text-chocolate tracking-tight group flex items-center justify-center gap-1">
+            <h1 style={{ color: globalStyles.textColor }} className="text-3xl font-black tracking-tight group flex items-center justify-center gap-1">
               {data.profile?.displayName || username}
-              <Sparkles className="text-cat-blue" size={20} />
             </h1>
           </div>
         </div>
 
         {/* Dynamic Content */}
         <div className="space-y-6">
-          {elements.length === 0 && (
+          {visibleElements.length === 0 && (
             <div className="text-center py-20 text-chocolate/20 font-bold uppercase tracking-widest bg-white/20 rounded-[3rem] border border-dashed border-chocolate/5">
               這裡目前還沒有任何內容...
             </div>
           )}
           
-          {elements.map((el) => (
+          {visibleElements.map((el) => (
             <RenderElement
               key={el.id}
               el={el}
@@ -214,6 +228,7 @@ export default function Profile() {
               publicReplies={publicReplies}
               onTrackClick={handleTrackClick}
               globalStyles={globalStyles}
+              onHashNavigate={(hash) => setActiveSectionHash(hash.replace(/^#/, ''))}
             />
           ))}
         </div>
@@ -233,7 +248,7 @@ export default function Profile() {
   );
 }
 
-function RenderElement({ el, onSendAnon, anonMessage, setAnonMessage, sent, isReplyEnabled, publicReplies, onTrackClick, globalStyles }: any) {
+function RenderElement({ el, onSendAnon, anonMessage, setAnonMessage, sent, isReplyEnabled, publicReplies, onTrackClick, globalStyles, onHashNavigate }: any) {
   const { type, content } = el;
   const visualStyle = toElementStyle(el.style);
   const baseComponentStyle = {
@@ -259,21 +274,35 @@ function RenderElement({ el, onSendAnon, anonMessage, setAnonMessage, sent, isRe
   }
 
   if (type === 'button') {
+    const url = content.url || '#';
+    const hashLink = isHashLink(url);
+    const buttonStyle = {
+      ...baseComponentStyle,
+      ...visualStyle,
+      backgroundColor: visualStyle.backgroundColor || globalStyles?.componentBackgroundColor,
+      color: globalStyles?.textColor,
+    };
     return (
       <motion.a 
         whileHover={{ scale: 1.02 }}
         whileTap={{ scale: 0.98 }}
-        href={content.url}
-        onClick={() => {
+        href={url}
+        onClick={(event) => {
           void onTrackClick(el.id);
+          if (hashLink) {
+            event.preventDefault();
+            const nextHash = url.replace(/^#/, '');
+            window.location.hash = nextHash;
+            onHashNavigate(`#${nextHash}`);
+          }
         }}
-        target="_blank"
-        rel="noopener noreferrer"
-        style={{ ...baseComponentStyle, ...visualStyle }}
-        className="w-full p-5 bg-white border border-chocolate/5 rounded-[2rem] text-chocolate font-bold flex items-center justify-between group soft-shadow"
+        target={hashLink ? undefined : '_blank'}
+        rel={hashLink ? undefined : 'noopener noreferrer'}
+        style={buttonStyle}
+        className="w-full p-5 border rounded-[2rem] font-bold flex items-center justify-between group"
       >
         <div className="flex items-center gap-4">
-          <div className="w-10 h-10 bg-cream rounded-2xl flex items-center justify-center text-cat-blue group-hover:bg-cat-blue group-hover:text-white transition-colors">
+          <div style={{ color: globalStyles?.textColor }} className="w-10 h-10 rounded-2xl flex items-center justify-center transition-colors">
             <ExternalLink size={18} />
           </div>
           <span className="text-lg">{content.label}</span>
@@ -292,7 +321,7 @@ function RenderElement({ el, onSendAnon, anonMessage, setAnonMessage, sent, isRe
           ...baseComponentStyle,
           borderColor: globalStyles?.componentBorderColor,
         }}
-        className="w-full p-8 rounded-[3rem] border space-y-4 shadow-2xl relative overflow-hidden group"
+        className="w-full p-8 rounded-[3rem] border space-y-4 relative overflow-hidden group"
       >
         <div className="absolute -top-10 -right-10 opacity-10 rotate-12 transition-transform duration-1000 group-hover:scale-150">
           <MessageSquare size={120} />
@@ -302,7 +331,7 @@ function RenderElement({ el, onSendAnon, anonMessage, setAnonMessage, sent, isRe
           <div className="w-8 h-8 bg-white/30 rounded-xl flex items-center justify-center">
             <Heart size={16} />
           </div>
-          <h3 className="font-display font-bold text-xl">{content.title || '給我留言'}</h3>
+          <h3 className="font-bold text-xl">{content.title || '給我留言'}</h3>
         </div>
 
         <div className="relative z-10 space-y-4">
@@ -346,22 +375,154 @@ function RenderElement({ el, onSendAnon, anonMessage, setAnonMessage, sent, isRe
   }
 
   if (type === 'image') {
-    return <img src={content.url} style={{ borderColor: globalStyles?.componentBorderColor, ...visualStyle }} className="w-full h-auto rounded-[3rem] shadow-xl border-4 border-white" alt="card image" />;
+    return <img src={content.url} style={{ borderColor: globalStyles?.componentBorderColor, ...visualStyle }} className="w-full h-auto rounded-[3rem] border-4 border-white" alt="card image" />;
+  }
+
+  if (type === 'section') {
+    return null;
+  }
+
+  if (type === 'dropdown') {
+    const items = Array.isArray(content.items) ? content.items : [];
+    return (
+      <div style={{ ...baseComponentStyle, ...visualStyle }} className="w-full p-5 rounded-[2rem] border">
+        <details className="group">
+          <summary className="cursor-pointer list-none flex items-center justify-between gap-3">
+            <span style={{ color: globalStyles?.textColor }} className="font-bold">{content.label || '下拉選單'}</span>
+            <span className="opacity-60 group-open:rotate-180 transition-transform">⌄</span>
+          </summary>
+          <div className="mt-4 space-y-2">
+            {items.length === 0 ? (
+              <div className="text-sm opacity-60">尚未新增選項</div>
+            ) : (
+              items.map((item: { label?: string; url?: string }, index: number) => (
+                <a
+                  key={`dropdown-public-${index}`}
+                  href={item.url || '#'}
+                  onClick={(event) => {
+                    void onTrackClick(el.id);
+                    if (isHashLink(item.url || '')) {
+                      event.preventDefault();
+                      const nextHash = (item.url || '').replace(/^#/, '');
+                      window.location.hash = nextHash;
+                      onHashNavigate(`#${nextHash}`);
+                    }
+                  }}
+                  style={{
+                    backgroundColor: globalStyles?.componentBackgroundColor,
+                    color: globalStyles?.textColor,
+                  }}
+                  className="block px-4 py-3 rounded-xl text-sm hover:opacity-90"
+                >
+                  {item.label || `項目 ${index + 1}`}
+                </a>
+              ))
+            )}
+          </div>
+        </details>
+      </div>
+    );
+  }
+
+  if (type === 'tags') {
+    const items = Array.isArray(content.items) ? content.items : [];
+    return (
+      <div className="flex flex-wrap gap-2">
+        {items.map((item: { icon?: string; text?: string }, index: number) => (
+          <span
+            key={`tag-public-${index}`}
+            style={{ ...baseComponentStyle, ...visualStyle }}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full border text-sm font-medium"
+          >
+            {item.icon ? <span>{item.icon}</span> : null}
+            <span>{item.text || `標籤 ${index + 1}`}</span>
+          </span>
+        ))}
+      </div>
+    );
   }
 
   if (type === 'embed') {
     const embedHtml = content.html || buildEmbedHtmlFromUrl(content.url || '');
     if (!embedHtml) return null;
     return (
-      <div 
+      <div
         style={{ borderColor: globalStyles?.componentBorderColor }}
-        className="w-full rounded-[2rem] overflow-hidden shadow-xl border-4 border-white bg-cream flex flex-col items-center justify-center embed-container"
+        className="w-full rounded-[2rem] overflow-hidden border-4 border-white bg-cream flex flex-col items-center justify-center embed-container"
         dangerouslySetInnerHTML={{ __html: embedHtml }}
       />
     );
   }
 
   return null;
+}
+
+function splitElementsBySection(elements: any[]) {
+  const headerElements: any[] = [];
+  const footerElements: any[] = [];
+  const sections: Array<{ hash: string; elements: any[] }> = [];
+
+  let preSection: any[] = [];
+  let currentMode: 'pre' | 'normal' | 'footer' = 'pre';
+  let currentSectionHash = 'home';
+  let headerMarkerSeen = false;
+
+  const ensureSection = (hash: string) => {
+    const normalized = (hash || 'home').replace(/^#/, '').trim() || 'home';
+    let section = sections.find((row) => row.hash === normalized);
+    if (!section) {
+      section = { hash: normalized, elements: [] };
+      sections.push(section);
+    }
+    return section;
+  };
+
+  for (const el of elements) {
+    if (el?.type === 'section') {
+      const kind = el?.content?.kind || 'normal';
+      if (kind === 'header') {
+        headerMarkerSeen = true;
+        headerElements.push(...preSection);
+        preSection = [];
+        currentMode = 'normal';
+        continue;
+      }
+
+      if (kind === 'footer') {
+        if (!headerMarkerSeen && preSection.length > 0) {
+          headerElements.push(...preSection);
+          preSection = [];
+        }
+        currentMode = 'footer';
+        continue;
+      }
+
+      currentMode = 'normal';
+      currentSectionHash = String(el?.content?.name || 'home').replace(/^#/, '') || 'home';
+      ensureSection(currentSectionHash);
+      continue;
+    }
+
+    if (currentMode === 'footer') {
+      footerElements.push(el);
+      continue;
+    }
+
+    if (currentMode === 'normal') {
+      ensureSection(currentSectionHash).elements.push(el);
+      continue;
+    }
+
+    preSection.push(el);
+  }
+
+  if (sections.length === 0) {
+    sections.push({ hash: 'home', elements: [...preSection] });
+  } else if (preSection.length > 0) {
+    headerElements.push(...preSection);
+  }
+
+  return { headerElements, footerElements, sections };
 }
 
 function LightbulbLogo() {

@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { CardData, CardElement, GlobalDesignStyles } from '../../types';
-import { Plus, GripVertical, Trash2, Layout, Type, Image as ImageIcon, Link as LinkIcon, Play, Hash, Music, Timer, Heart, Settings2, Palette, Save, Eye, Sparkles, UploadCloud, Loader2, ChevronDown } from 'lucide-react';
-import { motion, Reorder, AnimatePresence } from 'motion/react';
+import { Plus, GripVertical, Trash2, Layout, Type, Image as ImageIcon, Link as LinkIcon, Play, Hash, Music, Timer, Heart, Settings2, Palette, Save, Eye, UploadCloud, Loader2, ChevronDown, List, Tag } from 'lucide-react';
+import { motion, Reorder, AnimatePresence, useDragControls } from 'motion/react';
 import { db } from '../../lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import { cn } from '../../lib/utils';
@@ -17,6 +17,8 @@ const ELEMENT_TYPES = [
   { type: 'image', label: '圖片', icon: ImageIcon },
   { type: 'gallery', label: '圖庫', icon: Layout },
   { type: 'section', label: '區段', icon: Hash },
+  { type: 'dropdown', label: '下拉選單', icon: List },
+  { type: 'tags', label: '標籤', icon: Tag },
   { type: 'anon_box', label: '匿名箱', icon: Heart },
   { type: 'embed', label: '影音嵌入', icon: Play },
   { type: 'countdown', label: '倒計時', icon: Timer },
@@ -29,6 +31,8 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [isAddDrawerOpen, setIsAddDrawerOpen] = useState(false);
+  const [isTouchDevice, setIsTouchDevice] = useState(false);
+  const dragTimerRef = useRef<number | null>(null);
   const [profileData, setProfileData] = useState({
     displayName: cardData?.profile?.displayName || user?.displayName || cardData?.username || '',
     avatarUrl: cardData?.profile?.avatarUrl || user?.photoURL || ''
@@ -40,6 +44,16 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
     }
     setGlobalStyles(resolveGlobalStyles(cardData?.draft_content?.styles));
   }, [cardData]);
+
+  useEffect(() => {
+    const updateTouchMode = () => {
+      const coarse = window.matchMedia('(pointer: coarse)').matches;
+      setIsTouchDevice(coarse || window.innerWidth < 1024);
+    };
+    updateTouchMode();
+    window.addEventListener('resize', updateTouchMode);
+    return () => window.removeEventListener('resize', updateTouchMode);
+  }, []);
 
   const handleAdd = (type: string) => {
     const newEl: CardElement = {
@@ -54,7 +68,30 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
   };
 
   const handleUpdate = (id: string, updates: Partial<CardElement>) => {
-    setElements(elements.map(el => el.id === id ? { ...el, ...updates } : el));
+    setElements((prev) =>
+      prev.map((el) => {
+        if (el.id !== id) return el;
+        const merged = { ...el, ...updates } as CardElement;
+        if (merged.type !== 'section') return merged;
+
+        const nextKind = merged.content?.kind || 'normal';
+        if (nextKind !== 'header' && nextKind !== 'footer') return merged;
+
+        const hasDuplicate = prev.some(
+          (row) => row.id !== id && row.type === 'section' && (row.content?.kind || 'normal') === nextKind
+        );
+        if (!hasDuplicate) return merged;
+
+        alert(nextKind === 'header' ? '頁首區段只能有一個，已改回一般區段。' : '頁腳區段只能有一個，已改回一般區段。');
+        return {
+          ...merged,
+          content: {
+            ...(merged.content || {}),
+            kind: 'normal',
+          },
+        } as CardElement;
+      })
+    );
   };
 
   const handleSave = async () => {
@@ -119,7 +156,7 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
       {/* 1:1 Canvas (Matches Profile.tsx EXACTLY) */}
       <div
         style={pageStyle}
-        className="w-full min-h-full py-20 px-6 relative z-10 rounded-[2.5rem]"
+        className="w-full min-h-full py-20 px-6 relative z-10"
         onClick={() => setSelectedId(null)} // Click outside to deselect
       >
         <div className="w-full max-w-[480px] mx-auto">
@@ -127,27 +164,25 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
             className="text-center mb-12 cursor-pointer transition-transform hover:scale-105 active:scale-95" 
             onClick={(e) => { e.stopPropagation(); setSelectedId('profile'); }}
           >
-            <motion.div 
-              className={cn("w-32 h-32 bg-white rounded-[3rem] mx-auto mb-6 p-1.5 shadow-2xl relative overflow-hidden transition-all", isProfileSelected ? "ring-4 ring-cat-blue" : "")}
-            >
+            <motion.div className={cn("w-32 h-32 rounded-[3rem] mx-auto mb-6 p-1.5 relative overflow-hidden transition-all", isProfileSelected ? "ring-4 ring-cat-blue" : "")}>
               <img 
                 src={profileData.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${cardData.uid}`} 
                 alt={profileData.displayName}
-                className="w-full h-full rounded-[2.8rem] bg-cat-blue/10 object-cover"
+                className="w-full h-full rounded-[2.8rem] object-cover"
               />
             </motion.div>
             <div className="space-y-1">
-              <h1 className="text-3xl font-display font-black text-chocolate tracking-tight group flex items-center justify-center gap-1">
+              <h1 style={{ color: globalStyles.textColor }} className="text-3xl font-black tracking-tight group flex items-center justify-center gap-1">
                 {profileData.displayName}
-                <Sparkles className="text-cat-blue" size={20} />
               </h1>
             </div>
           </div>
 
-          <Reorder.Group 
+          <Reorder.Group
             axis="y" 
             values={elements} 
             onReorder={setElements} 
+            layoutScroll
             className="space-y-6 pb-32" // extra padding for bottom FABs
           >
             {elements.length === 0 && (
@@ -157,28 +192,20 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
             )}
 
             {elements.map((el) => (
-              <Reorder.Item 
-                key={el.id} 
-                value={el} 
-                onDragStart={() => setSelectedId(el.id)}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setSelectedId(el.id);
-                }}
-                className={cn(
-                  "relative transition-all cursor-pointer",
-                  selectedId === el.id ? "ring-4 ring-cat-blue/50 rounded-[2.2rem] scale-[1.02]" : "hover:scale-[1.01]"
-                )}
+              <SortableElementItem
+                key={el.id}
+                el={el}
+                selectedId={selectedId}
+                setSelectedId={setSelectedId}
+                isTouchDevice={isTouchDevice}
+                dragTimerRef={dragTimerRef}
               >
-                <div className="absolute -left-12 top-1/2 -translate-y-1/2 p-2 text-chocolate/20 hover:text-chocolate/50 transition-colors cursor-move opacity-0 group-hover:opacity-100 xl:opacity-100 flex flex-col items-center gap-2">
-                  <GripVertical size={20} />
-                </div>
 
                 {selectedId === el.id && (
                   <div className="absolute -right-4 -top-4 z-20">
                     <button 
                       onClick={(e) => { e.stopPropagation(); setElements(elements.filter(item => item.id !== el.id)); setSelectedId(null); }}
-                      className="p-3 bg-red-500 text-white hover:bg-red-600 rounded-full shadow-lg transition-transform hover:scale-110 active:scale-95"
+                      className="p-3 bg-red-500 text-white hover:bg-red-600 rounded-full transition-transform hover:scale-110 active:scale-95"
                     >
                       <Trash2 size={16} />
                     </button>
@@ -189,7 +216,7 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
                 <div className="pointer-events-none">
                   <ElementPreview el={el} globalStyles={globalStyles} />
                 </div>
-              </Reorder.Item>
+              </SortableElementItem>
             ))}
           </Reorder.Group>
         </div>
@@ -200,7 +227,7 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
         <button 
           onClick={handleSave}
           disabled={saving}
-          className="w-14 h-14 rounded-full flex items-center justify-center gap-2 bg-chocolate text-white font-bold transition-all shadow-xl hover:scale-105 active:scale-95 disabled:opacity-50 disabled:hover:scale-100 truncate"
+          className="w-14 h-14 rounded-full flex items-center justify-center gap-2 bg-chocolate text-white font-bold transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:hover:scale-100 truncate"
         >
           <Save size={24} />
           {saving ? '保存中...' : ''}
@@ -208,7 +235,7 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
         <button 
           onClick={() => { setIsAddDrawerOpen(!isAddDrawerOpen); setSelectedId(null); }}
           className={cn(
-            "w-14 h-14 rounded-full flex items-center justify-center transition-all bg-cat-blue text-white shadow-xl hover:scale-110 active:scale-95",
+            "w-14 h-14 rounded-full flex items-center justify-center transition-all bg-cat-blue text-white hover:scale-110 active:scale-95",
             isAddDrawerOpen && "rotate-45"
           )}
         >
@@ -224,7 +251,7 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: '-100%', opacity: 0 }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed top-0 left-0 h-[100vh] w-80 bg-white border-r border-chocolate/5 flex flex-col p-6 overflow-y-auto shadow-2xl z-50"
+            className="fixed top-0 left-0 h-[100vh] w-80 bg-white border-r border-chocolate/5 flex flex-col p-6 overflow-y-auto z-50"
           >
             <div className="mb-8 flex items-center justify-between">
               <h3 className="text-sm font-bold text-chocolate/40 uppercase tracking-widest">全局網站設計</h3>
@@ -242,7 +269,7 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
                   onClick={() => handleAdd(et.type)}
                   className="flex flex-col items-center justify-center gap-2 p-6 bg-white border-2 border-transparent hover:border-cat-blue/20 bg-cream/30 rounded-2xl hover:text-cat-blue transition-all group hover:-translate-y-1"
                 >
-                  <div className="w-12 h-12 bg-white rounded-xl shadow-sm border border-chocolate/5 flex items-center justify-center group-hover:bg-cat-blue group-hover:text-white transition-colors group-hover:shadow-cat-blue/20">
+                  <div className="w-12 h-12 bg-white rounded-xl border border-chocolate/5 flex items-center justify-center group-hover:bg-cat-blue group-hover:text-white transition-colors">
                     <et.icon size={24} />
                   </div>
                   <span className="text-xs font-bold">{et.label}</span>
@@ -261,7 +288,7 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: '100%', opacity: 0 }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="absolute top-0 right-0 h-[100vh] w-80 bg-white border-l border-chocolate/5 p-6 overflow-y-auto shadow-2xl z-50 fixed right-0"
+            className="absolute top-0 right-0 h-[100vh] w-80 bg-white border-l border-chocolate/5 p-6 overflow-y-auto z-50 fixed right-0"
           >
             <div className="flex items-center justify-between mb-8 pb-4 border-b border-chocolate/5">
               <div className="flex items-center gap-2 text-chocolate">
@@ -275,8 +302,8 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
               {isProfileSelected ? (
                 <>
                   <div className="p-4 bg-cream rounded-2xl flex items-center gap-3">
-                    <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-chocolate shadow-sm">
-                      <Sparkles size={18} />
+                    <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-chocolate">
+                      <Eye size={18} />
                     </div>
                     <div>
                       <div className="text-sm font-bold text-chocolate">個人檔案</div>
@@ -307,7 +334,7 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
               ) : activeElement ? (
                 <>
                   <div className="p-4 bg-cream rounded-2xl flex items-center gap-3">
-                    <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-chocolate shadow-sm">
+                    <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-chocolate">
                       {(() => {
                         const Icon = ELEMENT_TYPES.find(t => t.type === activeElement.type)?.icon;
                         return Icon ? <Icon size={18} /> : null;
@@ -334,6 +361,20 @@ function getInitialContent(type: string) {
     case 'text': return { text: '輸入文字内容...', size: 'md', align: 'center' };
     case 'button': return { label: '點擊按鈕', url: 'https://', icon: 'Link' };
     case 'image': return { url: 'https://images.unsplash.com/photo-1493612276216-ee3925520721?w=800&auto=format&fit=crop', alt: '靈感圖片' };
+    case 'section': return { name: 'home', title: '首頁區段', kind: 'normal' };
+    case 'dropdown': return {
+      label: '快速導覽',
+      items: [
+        { label: '前往首頁', url: '#home' },
+        { label: '聯絡我', url: '#contact' },
+      ],
+    };
+    case 'tags': return {
+      items: [
+        { text: '設計', icon: '✨' },
+        { text: '開發', icon: '💻' },
+      ],
+    };
     case 'anon_box': return { title: '跟我說些悄悄話吧', placeholder: '在此輸入...' };
     case 'embed': return { url: '', html: '' };
     default: return {};
@@ -366,10 +407,16 @@ function ElementPreview({ el, globalStyles }: { el: CardElement; globalStyles: G
   }
 
   if (type === 'button') {
+    const buttonStyle = {
+      ...baseComponentStyle,
+      ...visualStyle,
+      backgroundColor: visualStyle.backgroundColor || globalStyles.componentBackgroundColor,
+      color: globalStyles.textColor,
+    };
     return (
-      <div style={{ ...baseComponentStyle, ...visualStyle }} className="w-full p-5 bg-white border border-chocolate/5 rounded-[2rem] text-chocolate font-bold flex items-center justify-between group soft-shadow pointer-events-none">
+      <div style={buttonStyle} className="w-full p-5 border rounded-[2rem] font-bold flex items-center justify-between group pointer-events-none">
         <div className="flex items-center gap-4">
-          <div className="w-10 h-10 bg-cream rounded-2xl flex items-center justify-center text-cat-blue">
+          <div style={{ color: globalStyles.textColor }} className="w-10 h-10 rounded-2xl flex items-center justify-center">
             <LinkIcon size={18} />
           </div>
           <span className="text-lg">{content.label}</span>
@@ -385,7 +432,7 @@ function ElementPreview({ el, globalStyles }: { el: CardElement; globalStyles: G
           ...baseComponentStyle,
           borderColor: globalStyles.componentBorderColor,
         }}
-        className="w-full p-8 rounded-[3rem] border space-y-4 shadow-2xl relative overflow-hidden pointer-events-none"
+        className="w-full p-8 rounded-[3rem] border space-y-4 relative overflow-hidden pointer-events-none"
       >
         <div className="absolute -top-10 -right-10 opacity-10 rotate-12">
           <Heart size={120} />
@@ -394,7 +441,7 @@ function ElementPreview({ el, globalStyles }: { el: CardElement; globalStyles: G
           <div className="w-8 h-8 bg-white/30 rounded-xl flex items-center justify-center">
             <Heart size={16} />
           </div>
-          <h3 className="font-display font-bold text-xl">{content.title || '給我留言'}</h3>
+          <h3 className="font-bold text-xl">{content.title || '給我留言'}</h3>
         </div>
         <div className="relative z-10 space-y-4">
           <div className="w-full bg-white/30 border border-white/50 rounded-[2rem] p-5 truncate opacity-70">
@@ -412,14 +459,64 @@ function ElementPreview({ el, globalStyles }: { el: CardElement; globalStyles: G
   }
 
   if (type === 'image') {
-    return <img src={content.url} style={{ borderColor: globalStyles.componentBorderColor, ...visualStyle }} className="w-full h-auto rounded-[3rem] shadow-xl border-4 border-white pointer-events-none" alt="preview" />;
+    return <img src={content.url} style={{ borderColor: globalStyles.componentBorderColor, ...visualStyle }} className="w-full h-auto rounded-[3rem] border-4 border-white pointer-events-none" alt="preview" />;
+  }
+
+  if (type === 'section') {
+    const marker = content.kind === 'header' ? '#header' : content.kind === 'footer' ? '#footer' : `#${(content.name || 'section').replace(/^#/, '')}`;
+    return (
+      <div
+        style={{ borderColor: globalStyles.componentBorderColor, color: globalStyles.textColor, ...visualStyle }}
+        className="relative left-1/2 -translate-x-1/2 w-screen max-w-none py-1 border-y border-dashed text-center bg-transparent"
+      >
+        <div className="text-[11px] font-black tracking-widest uppercase">{marker}</div>
+      </div>
+    );
+  }
+
+  if (type === 'dropdown') {
+    const first = content.items?.[0];
+    return (
+      <div
+        style={{ ...baseComponentStyle, ...visualStyle }}
+        className="w-full p-5 rounded-[2rem] border flex items-center justify-between"
+      >
+        <div>
+          <div style={{ color: globalStyles.textColor }} className="text-xs font-bold uppercase tracking-wider opacity-70">{content.label || '下拉選單'}</div>
+          <div className="text-sm mt-1 truncate">{first ? `${first.label} -> ${first.url}` : '尚未新增選項'}</div>
+        </div>
+        <ChevronDown size={18} className="opacity-60" />
+      </div>
+    );
+  }
+
+  if (type === 'tags') {
+    const items = content.items || [];
+    return (
+      <div className="flex flex-wrap gap-2">
+        {items.length === 0 ? (
+          <div style={baseComponentStyle} className="text-xs px-3 py-2 rounded-xl border">尚未新增標籤</div>
+        ) : (
+          items.map((item: { text?: string; icon?: string }, idx: number) => (
+            <div
+              key={`tag-${idx}`}
+              style={{ ...baseComponentStyle, ...visualStyle }}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-full border font-medium text-sm"
+            >
+              {item.icon ? <span>{item.icon}</span> : null}
+              <span>{item.text || `標籤 ${idx + 1}`}</span>
+            </div>
+          ))
+        )}
+      </div>
+    );
   }
   
   if (type === 'embed') {
     const embedHtml = content.html || buildEmbedHtmlFromUrl(content.url || '');
     if (!embedHtml) {
       return (
-        <div className="w-full rounded-[2rem] overflow-hidden shadow-xl border-4 border-white bg-cream flex flex-col items-center justify-center p-8 text-center pointer-events-none">
+        <div className="w-full rounded-[2rem] overflow-hidden border-4 border-white bg-cream flex flex-col items-center justify-center p-8 text-center pointer-events-none">
            <Play className="text-chocolate/20 mb-4" size={48} />
            <p className="font-bold text-chocolate">嵌入內容區域</p>
            <p className="text-xs text-chocolate/50 font-mono mt-2 truncate w-full">請在屬性面板貼上影音連結或 iframe 代碼</p>
@@ -429,7 +526,7 @@ function ElementPreview({ el, globalStyles }: { el: CardElement; globalStyles: G
     return (
       <div 
         style={{ borderColor: globalStyles.componentBorderColor }}
-        className="w-full rounded-[2rem] overflow-hidden shadow-xl border-4 border-white bg-cream flex flex-col items-center justify-center pointer-events-none"
+        className="w-full rounded-[2rem] overflow-hidden border-4 border-white bg-cream flex flex-col items-center justify-center pointer-events-none"
       >
         <StableEmbedHtml embedHtml={embedHtml} />
       </div>
@@ -531,11 +628,7 @@ function ImageUploadControl({ currentUrl, onUploadComplete }: { currentUrl?: str
 }
 
 function GlobalStyleControls({ styles, onChange }: { styles: GlobalDesignStyles; onChange: (next: GlobalDesignStyles) => void }) {
-  const [openPanels, setOpenPanels] = useState<{ background: boolean; typography: boolean; palette: boolean }>({
-    background: true,
-    typography: false,
-    palette: false,
-  });
+  const [openPanel, setOpenPanel] = useState<'background' | 'typography' | 'palette'>('background');
 
   const update = <K extends keyof GlobalDesignStyles>(key: K, value: GlobalDesignStyles[K]) => {
     onChange({ ...styles, [key]: value });
@@ -560,14 +653,22 @@ function GlobalStyleControls({ styles, onChange }: { styles: GlobalDesignStyles;
   };
 
   const togglePanel = (key: 'background' | 'typography' | 'palette') => {
-    setOpenPanels((prev) => ({ ...prev, [key]: !prev[key] }));
+    setOpenPanel((prev) => (prev === key ? prev : key));
   };
 
   return (
-    <div className="space-y-4 rounded-2xl border border-chocolate/10 p-4 bg-cream/40">
-      <AccordionHeader title="背景設定" isOpen={openPanels.background} onClick={() => togglePanel('background')} />
-      {openPanels.background && (
-        <div className="space-y-3 pb-2">
+    <div className="rounded-2xl bg-cream/40">
+      <AccordionHeader title="背景設定" isOpen={openPanel === 'background'} onClick={() => togglePanel('background')} />
+      <AnimatePresence initial={false}>
+        {openPanel === 'background' && (
+        <motion.div
+          initial={{ height: 0, opacity: 0 }}
+          animate={{ height: 'auto', opacity: 1 }}
+          exit={{ height: 0, opacity: 0 }}
+          transition={{ duration: 0.2, ease: 'easeOut' }}
+          className="overflow-hidden"
+        >
+        <div className="space-y-3 px-3 py-3">
           <CompactImageUploadControl onUploadComplete={(url) => update('backgroundImageUrl', url)} />
           <input
             value={styles.backgroundImageUrl || ''}
@@ -602,11 +703,21 @@ function GlobalStyleControls({ styles, onChange }: { styles: GlobalDesignStyles;
             </select>
           </div>
         </div>
+        </motion.div>
       )}
+      </AnimatePresence>
 
-      <AccordionHeader title="字體與主色" isOpen={openPanels.typography} onClick={() => togglePanel('typography')} />
-      {openPanels.typography && (
-        <div className="space-y-3 pb-2">
+      <AccordionHeader title="字體與主色" isOpen={openPanel === 'typography'} onClick={() => togglePanel('typography')} />
+      <AnimatePresence initial={false}>
+      {openPanel === 'typography' && (
+        <motion.div
+          initial={{ height: 0, opacity: 0 }}
+          animate={{ height: 'auto', opacity: 1 }}
+          exit={{ height: 0, opacity: 0 }}
+          transition={{ duration: 0.2, ease: 'easeOut' }}
+          className="overflow-hidden"
+        >
+        <div className="space-y-3 px-3 py-3">
           <select
             value={styles.fontFamily || 'system'}
             onChange={(e) => update('fontFamily', e.target.value as any)}
@@ -637,11 +748,21 @@ function GlobalStyleControls({ styles, onChange }: { styles: GlobalDesignStyles;
             onPick={(color) => update('componentBorderColor', color)}
           />
         </div>
+        </motion.div>
       )}
+      </AnimatePresence>
 
-      <AccordionHeader title="主題調色盤" isOpen={openPanels.palette} onClick={() => togglePanel('palette')} />
-      {openPanels.palette && (
-        <div className="space-y-3 pb-1">
+      <AccordionHeader title="主題調色盤" isOpen={openPanel === 'palette'} onClick={() => togglePanel('palette')} />
+      <AnimatePresence initial={false}>
+      {openPanel === 'palette' && (
+        <motion.div
+          initial={{ height: 0, opacity: 0 }}
+          animate={{ height: 'auto', opacity: 1 }}
+          exit={{ height: 0, opacity: 0 }}
+          transition={{ duration: 0.2, ease: 'easeOut' }}
+          className="overflow-hidden"
+        >
+        <div className="space-y-3 px-3 py-3">
           <div className="grid grid-cols-4 gap-2">
             {palette.map((color, index) => (
               <div key={`palette-${index}`} className="space-y-1">
@@ -672,7 +793,9 @@ function GlobalStyleControls({ styles, onChange }: { styles: GlobalDesignStyles;
             新增顏色
           </button>
         </div>
+        </motion.div>
       )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -681,7 +804,7 @@ function AccordionHeader({ title, isOpen, onClick }: { title: string; isOpen: bo
   return (
     <button
       onClick={onClick}
-      className="w-full flex items-center justify-between p-3 rounded-xl bg-white border border-chocolate/10 text-xs font-black text-chocolate/70"
+      className="w-full flex items-center justify-between px-3 py-3 bg-white border-b border-chocolate/10 text-xs font-black text-chocolate/70"
     >
       <span>{title}</span>
       <ChevronDown size={16} className={cn('transition-transform', isOpen ? 'rotate-180' : 'rotate-0')} />
@@ -933,5 +1056,217 @@ function InspectorControls({ el, onUpdate }: { el: CardElement, onUpdate: (u: an
     );
   }
 
+  if (type === 'section') {
+    return (
+      <div className="space-y-4">
+        <label className="block text-xs font-bold text-chocolate/40">區段類型</label>
+        <select
+          value={content.kind || 'normal'}
+          onChange={(e) => handleChange('kind', e.target.value)}
+          className="w-full p-4 bg-cream border-none rounded-xl text-sm outline-none"
+        >
+          <option value="normal">一般區段</option>
+          <option value="header">頁首區段</option>
+          <option value="footer">頁腳區段</option>
+        </select>
+        {(content.kind || 'normal') === 'normal' && (
+          <>
+            <label className="block text-xs font-bold text-chocolate/40">一般區段錨點（#）</label>
+            <div className="flex items-center rounded-xl bg-cream overflow-hidden">
+              <span className="px-4 text-sm font-bold text-chocolate/60">#</span>
+              <input
+                value={(content.name || '').replace(/^#/, '')}
+                onChange={(e) => handleChange('name', e.target.value.replace(/^#/, ''))}
+                className="w-full p-4 bg-transparent border-none text-sm outline-none focus:ring-2 ring-cat-blue/20"
+                placeholder="home / test / about"
+              />
+            </div>
+          </>
+        )}
+        {(content.kind || 'normal') !== 'normal' && (
+          <div className="text-xs text-chocolate/50 bg-cream/60 rounded-xl p-3">
+            固定區段不需要名稱或 # 錨點。
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (type === 'dropdown') {
+    const items = content.items || [];
+    const updateItems = (nextItems: Array<{ label: string; url: string }>) => handleChange('items', nextItems);
+    return (
+      <div className="space-y-4">
+        <label className="block text-xs font-bold text-chocolate/40">選單標題</label>
+        <input
+          value={content.label || ''}
+          onChange={(e) => handleChange('label', e.target.value)}
+          className="w-full p-4 bg-cream border-none rounded-xl text-sm outline-none focus:ring-2 ring-cat-blue/20"
+          placeholder="例如：快速導覽"
+        />
+        <label className="block text-xs font-bold text-chocolate/40">選項列表</label>
+        <div className="space-y-2">
+          {items.map((item: { label: string; url: string }, index: number) => (
+            <div key={`dropdown-item-${index}`} className="flex items-center gap-2">
+              <input
+                value={item.label}
+                onChange={(e) => {
+                  const next = [...items];
+                  next[index] = { ...next[index], label: e.target.value };
+                  updateItems(next);
+                }}
+                className="min-w-0 flex-1 p-3 bg-cream rounded-xl text-xs outline-none"
+                placeholder="文字"
+              />
+              <input
+                value={item.url}
+                onChange={(e) => {
+                  const next = [...items];
+                  next[index] = { ...next[index], url: e.target.value };
+                  updateItems(next);
+                }}
+                className="min-w-0 flex-1 p-3 bg-cream rounded-xl text-xs outline-none"
+                placeholder="連結"
+              />
+              <button
+                onClick={() => updateItems(items.filter((_: any, i: number) => i !== index))}
+                className="w-9 h-9 shrink-0 inline-flex items-center justify-center bg-red-50 text-red-500 rounded-xl text-xs font-bold"
+                title="刪除選項"
+              >
+                <Trash2 size={15} />
+              </button>
+            </div>
+          ))}
+          <button
+            onClick={() => updateItems([...items, { label: `項目 ${items.length + 1}`, url: '#' }])}
+            className="w-full p-3 rounded-xl text-xs font-bold bg-white border border-chocolate/10 hover:bg-chocolate hover:text-white transition-colors"
+          >
+            新增選項
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (type === 'tags') {
+    const items = content.items || [];
+    const updateItems = (nextItems: Array<{ text: string; icon?: string }>) => handleChange('items', nextItems);
+    return (
+      <div className="space-y-4">
+        <label className="block text-xs font-bold text-chocolate/40">標籤列表</label>
+        <div className="space-y-2">
+          {items.map((item: { text: string; icon?: string }, index: number) => (
+            <div key={`tag-item-${index}`} className="flex items-center gap-2">
+              <input
+                value={item.icon || ''}
+                onChange={(e) => {
+                  const next = [...items];
+                  next[index] = { ...next[index], icon: e.target.value };
+                  updateItems(next);
+                }}
+                className="w-14 shrink-0 p-3 bg-cream rounded-xl text-xs outline-none text-center"
+                placeholder="✨"
+              />
+              <input
+                value={item.text}
+                onChange={(e) => {
+                  const next = [...items];
+                  next[index] = { ...next[index], text: e.target.value };
+                  updateItems(next);
+                }}
+                className="min-w-0 flex-1 p-3 bg-cream rounded-xl text-xs outline-none"
+                placeholder="標籤文字"
+              />
+              <button
+                onClick={() => updateItems(items.filter((_: any, i: number) => i !== index))}
+                className="w-9 h-9 shrink-0 inline-flex items-center justify-center bg-red-50 text-red-500 rounded-xl text-xs font-bold"
+                title="刪除標籤"
+              >
+                <Trash2 size={15} />
+              </button>
+            </div>
+          ))}
+          <button
+            onClick={() => updateItems([...items, { text: `標籤 ${items.length + 1}`, icon: '✨' }])}
+            className="w-full p-3 rounded-xl text-xs font-bold bg-white border border-chocolate/10 hover:bg-chocolate hover:text-white transition-colors"
+          >
+            新增標籤
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return <div className="text-xs text-chocolate/30 py-8 italic text-center">此組件暫無屬性面板。</div>;
+}
+
+function SortableElementItem({
+  el,
+  selectedId,
+  setSelectedId,
+  isTouchDevice,
+  dragTimerRef,
+  children,
+}: {
+  el: CardElement;
+  selectedId: string | null;
+  setSelectedId: React.Dispatch<React.SetStateAction<string | null>>;
+  isTouchDevice: boolean;
+  dragTimerRef: React.MutableRefObject<number | null>;
+  children: React.ReactNode;
+}) {
+  const dragControls = useDragControls();
+
+  const clearDragTimer = () => {
+    if (dragTimerRef.current) {
+      window.clearTimeout(dragTimerRef.current);
+      dragTimerRef.current = null;
+    }
+  };
+
+  const onHandlePointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    clearDragTimer();
+    const nativeEvent = event.nativeEvent;
+    if (isTouchDevice) {
+      dragTimerRef.current = window.setTimeout(() => {
+        dragControls.start(nativeEvent);
+      }, 280);
+      return;
+    }
+    dragControls.start(nativeEvent);
+  };
+
+  return (
+    <Reorder.Item
+      key={el.id}
+      value={el}
+      dragControls={dragControls}
+      dragListener={false}
+      whileDrag={{ scale: 1, zIndex: 40 }}
+      onDragStart={() => setSelectedId(el.id)}
+      onClick={(e) => {
+        e.stopPropagation();
+        setSelectedId(el.id);
+      }}
+      className={cn(
+        'relative cursor-pointer group',
+        selectedId === el.id ? 'ring-4 ring-cat-blue/50 rounded-[2.2rem]' : ''
+      )}
+      style={{ touchAction: isTouchDevice ? 'pan-y' : 'none' }}
+    >
+      <button
+        type="button"
+        onPointerDown={onHandlePointerDown}
+        onPointerUp={clearDragTimer}
+        onPointerCancel={clearDragTimer}
+        onPointerLeave={clearDragTimer}
+        className="absolute -left-12 top-1/2 -translate-y-1/2 p-2 text-chocolate/20 hover:text-chocolate/50 transition-colors cursor-move opacity-0 group-hover:opacity-100 xl:opacity-100 flex flex-col items-center gap-2"
+        title={isTouchDevice ? '長按拖曳排序' : '拖曳排序'}
+      >
+        <GripVertical size={20} />
+      </button>
+      {children}
+    </Reorder.Item>
+  );
 }

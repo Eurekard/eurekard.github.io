@@ -31,17 +31,28 @@ export function withAlpha(hex: string, alpha = 1): string {
 
 export function toElementStyle(style?: ElementVisualStyle): CSSProperties {
   if (!style) return {};
+  const next: CSSProperties = {};
 
-  return {
-    backgroundColor: style.backgroundColor
-      ? withAlpha(style.backgroundColor, style.backgroundOpacity ?? 1)
-      : undefined,
-    borderColor: style.borderColor,
-    borderWidth: style.borderWidth ?? 0,
-    borderStyle: style.borderStyle === 'wavy' ? 'solid' : style.borderStyle,
-    borderRadius: typeof style.radius === 'number' ? `${style.radius}px` : undefined,
-    textAlign: style.textAlign,
-  };
+  if (style.backgroundColor) {
+    next.backgroundColor = withAlpha(style.backgroundColor, style.backgroundOpacity ?? 1);
+  }
+  if (style.borderColor) {
+    next.borderColor = style.borderColor;
+  }
+  if (typeof style.borderWidth === 'number') {
+    next.borderWidth = style.borderWidth;
+  }
+  if (style.borderStyle) {
+    next.borderStyle = style.borderStyle === 'wavy' ? 'solid' : style.borderStyle;
+  }
+  if (typeof style.radius === 'number') {
+    next.borderRadius = `${style.radius}px`;
+  }
+  if (style.textAlign) {
+    next.textAlign = style.textAlign;
+  }
+
+  return next;
 }
 
 export function normalizeSectionAnchor(raw: string): string {
@@ -86,7 +97,7 @@ export function toGlobalPageStyle(styles?: Partial<GlobalDesignStyles>): CSSProp
     backgroundImage: resolved.backgroundImageUrl ? `url(${resolved.backgroundImageUrl})` : undefined,
     backgroundRepeat: resolved.backgroundImageUrl ? resolved.backgroundRepeat : undefined,
     backgroundSize: resolved.backgroundImageUrl ? backgroundSize : undefined,
-    backgroundPosition: resolved.backgroundImageUrl ? 'center center' : undefined,
+    backgroundPosition: resolved.backgroundImageUrl ? 'left top' : undefined,
     color: resolved.textColor,
     fontFamily: getFontFamily(resolved.fontFamily),
   };
