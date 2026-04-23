@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../lib/firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
-import { CardData, AnonResponse } from '../types';
+import { CardData } from '../types';
 import { BarChart3, MessageSquareText, PenLine, Settings, Share2, LogOut, ExternalLink, QrCode, Copy, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import AnalyticsView from '../components/dashboard/AnalyticsView';
 import ResponsesView from '../components/dashboard/ResponsesView';
 import EditorView from '../components/dashboard/EditorView';
@@ -15,13 +15,32 @@ export default function Dashboard() {
   const { user, profile, logOut } = useAuth();
   const [activeTab, setActiveTab] = useState<'analytics' | 'responses' | 'editor'>('editor');
   const [cardData, setCardData] = useState<CardData | null>(null);
-  const [responses, setResponses] = useState<AnonResponse[]>([]);
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [copied, setCopied] = useState(false);
-  const navigate = useNavigate();
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setCardData({
+        uid: 'demo_user',
+        username: 'demo',
+        profile: {
+          displayName: '訪客測試模式',
+        },
+        published_content: {
+          elements: [],
+          styles: {},
+        },
+        draft_content: {
+          elements: [],
+          styles: {},
+        },
+        interactions: {
+          responsesEnabled: true,
+        },
+        updatedAt: new Date().toISOString(),
+      });
+      return;
+    }
 
     const unsubCard = onSnapshot(doc(db, 'cards', user.uid), (currDoc) => {
       if (currDoc.exists()) {
@@ -36,6 +55,26 @@ export default function Dashboard() {
         }
         setCardData(d);
       } else {
+        setCardData({
+          uid: user.uid,
+          username: profile?.username || user.displayName || 'new-user',
+          profile: {
+            displayName: user.displayName || profile?.username || '新用戶',
+            avatarUrl: user.photoURL || '',
+          },
+          published_content: {
+            elements: [],
+            styles: {},
+          },
+          draft_content: {
+            elements: [],
+            styles: {},
+          },
+          interactions: {
+            responsesEnabled: true,
+          },
+          updatedAt: new Date().toISOString(),
+        });
       }
     }, (error) => {
       if (error.code !== 'cancelled') {
@@ -44,7 +83,7 @@ export default function Dashboard() {
     });
 
     return () => unsubCard();
-  }, [user, navigate]);
+  }, [user, profile]);
 
   const handleCopyLink = () => {
     if (!profile) return;
@@ -98,7 +137,6 @@ export default function Dashboard() {
             className="p-2 whitespace-nowrap bg-white border border-chocolate/10 rounded-xl text-chocolate/70 hover:bg-chocolate hover:text-white transition-all flex items-center gap-2 font-bold text-sm px-4"
           >
             <Share2 size={18} />
-            發布與分享
           </button>
           
           <div className="w-10 h-10 rounded-full border-2 border-white bg-cat-blue/20 overflow-hidden cursor-pointer">
@@ -122,7 +160,7 @@ export default function Dashboard() {
             )}
             {activeTab === 'responses' && (
               <motion.div key="responses" className="flex-1 relative" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                <ResponsesView cardId={cardData.uid} />
+                <ResponsesView cardId={cardData.uid} cardData={cardData} />
               </motion.div>
             )}
             {activeTab === 'editor' && (

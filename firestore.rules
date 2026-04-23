@@ -35,7 +35,7 @@ service cloud.firestore {
     function isValidResponse(data) {
       return data.keys().hasAll(['message', 'createdAt', 'status'])
         && data.message is string && data.message.size() <= 1000
-        && data.status in ['unread', 'archived', 'deleted']
+        && data.status in ['unread', 'replied', 'archived', 'deleted']
         && (data.keys().size() == 3 || (data.keys().size() == 4 && data.keys().hasAll(['reply'])));
     }
 
@@ -65,7 +65,9 @@ service cloud.firestore {
           && incoming().status == 'unread';
         allow update: if isOwner(cardId)
           && incoming().message == existing().message
-          && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'reply']);
+          && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'reply'])
+          && incoming().status in ['unread', 'replied', 'archived', 'deleted']
+          && (!incoming().keys().hasAny(['reply']) || (incoming().reply is string && incoming().reply.size() <= 1000));
         allow delete: if isOwner(cardId);
       }
     }
@@ -80,6 +82,21 @@ service cloud.firestore {
     // 4. Analytics
     match /analytics/{cardId} {
       allow read, write: if isOwner(cardId);
+
+      match /events/{eventId} {
+        allow read: if isOwner(cardId);
+        allow create: if incoming().keys().hasAll(['type', 'day', 'device', 'source', 'createdAt'])
+          && incoming().keys().hasOnly(['type', 'day', 'device', 'source', 'createdAt', 'targetId'])
+          && incoming().type in ['view', 'click']
+          && incoming().day is string
+          && incoming().day.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+          && incoming().device in ['mobile', 'desktop']
+          && incoming().source in ['direct', 'social', 'search', 'referral', 'unknown']
+          && incoming().createdAt is string
+          && incoming().createdAt.size() <= 40
+          && (!incoming().keys().hasAny(['targetId']) || (incoming().targetId is string && incoming().targetId.size() <= 128));
+        allow update, delete: if false;
+      }
     }
   }
 }

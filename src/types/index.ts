@@ -18,6 +18,17 @@ export interface CardElement {
   style: any;
 }
 
+export interface ElementVisualStyle {
+  useGlobalStyle?: boolean;
+  backgroundColor?: string;
+  backgroundOpacity?: number;
+  borderColor?: string;
+  borderWidth?: number;
+  borderStyle?: 'solid' | 'dashed' | 'dotted' | 'double' | 'wavy';
+  textAlign?: 'left' | 'center' | 'right';
+  radius?: number;
+}
+
 export interface CardData {
   uid: string;
   username: string;
@@ -33,6 +44,9 @@ export interface CardData {
     elements: CardElement[];
     styles: any;
   };
+  interactions?: {
+    responsesEnabled?: boolean;
+  };
   updatedAt: string;
 }
 
@@ -41,6 +55,6 @@ export interface AnonResponse {
   cardId: string;
   message: string;
   createdAt: string;
-  status: 'unread' | 'archived' | 'deleted';
+  status: 'unread' | 'replied' | 'archived' | 'deleted';
   reply?: string;
 }

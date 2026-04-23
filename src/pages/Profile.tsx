@@ -1,11 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { db } from '../lib/firebase';
-import { doc, getDoc, collection, addDoc, query, where, getDocs, limit } from 'firebase/firestore';
-import { CardData, CardElement } from '../types';
+import { doc, getDoc, collection, addDoc, query, onSnapshot, where } from 'firebase/firestore';
+import { CardData, AnonResponse } from '../types';
 import { motion } from 'motion/react';
 import { Heart, Send, Sparkles, ExternalLink, MessageSquare } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { buildEmbedHtmlFromUrl } from '../lib/embed';
+import { toElementStyle } from '../lib/cardStyle';
+import { detectDevice, detectSource, getAnalyticsDay } from '../lib/analytics';
 
 export default function Profile() {
   const { username } = useParams();
@@ -14,6 +17,7 @@ export default function Profile() {
   const [error, setError] = useState(false);
   const [anonMessage, setAnonMessage] = useState('');
   const [sent, setSent] = useState(false);
+  const [publicReplies, setPublicReplies] = useState<AnonResponse[]>([]);
 
   useEffect(() => {
     // Set dynamic favicon
@@ -65,6 +69,56 @@ export default function Profile() {
     }
     fetchData();
   }, [username]);
+
+  useEffect(() => {
+    if (!data?.uid) {
+      setPublicReplies([]);
+      return;
+    }
+
+    const q = query(
+      collection(db, 'cards', data.uid, 'responses'),
+      where('status', '==', 'replied')
+    );
+
+    const unsub = onSnapshot(q, (snapshot) => {
+      const rows = snapshot.docs.map((row) => ({ id: row.id, ...row.data() } as AnonResponse));
+      rows.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+      setPublicReplies(rows);
+    });
+
+    return () => unsub();
+  }, [data?.uid]);
+
+  useEffect(() => {
+    if (!data?.uid) return;
+
+    const day = getAnalyticsDay();
+    const dedupeKey = `eurekard:view:${data.uid}:${day}`;
+    if (window.localStorage.getItem(dedupeKey)) return;
+
+    window.localStorage.setItem(dedupeKey, '1');
+    void addDoc(collection(db, 'analytics', data.uid, 'events'), {
+      type: 'view',
+      day,
+      device: detectDevice(),
+      source: detectSource(document.referrer),
+      createdAt: new Date().toISOString(),
+    });
+  }, [data?.uid]);
+
+  const handleTrackClick = async (targetId?: string) => {
+    if (!data?.uid) return;
+
+    await addDoc(collection(db, 'analytics', data.uid, 'events'), {
+      type: 'click',
+      day: getAnalyticsDay(),
+      device: detectDevice(),
+      source: detectSource(document.referrer),
+      targetId: targetId || 'button',
+      createdAt: new Date().toISOString(),
+    });
+  };
 
   const handleSendAnon = async (cardId: string) => {
     if (!anonMessage.trim()) return;
@@ -147,7 +201,17 @@ export default function Profile() {
           )}
           
           {elements.map((el) => (
-            <RenderElement key={el.id} el={el} onSendAnon={() => handleSendAnon(data.uid)} anonMessage={anonMessage} setAnonMessage={setAnonMessage} sent={sent} />
+            <RenderElement
+              key={el.id}
+              el={el}
+              onSendAnon={() => handleSendAnon(data.uid)}
+              anonMessage={anonMessage}
+              setAnonMessage={setAnonMessage}
+              sent={sent}
+              isReplyEnabled={data.interactions?.responsesEnabled !== false}
+              publicReplies={publicReplies}
+              onTrackClick={handleTrackClick}
+            />
           ))}
         </div>
 
@@ -166,13 +230,16 @@ export default function Profile() {
   );
 }
 
-function RenderElement({ el, onSendAnon, anonMessage, setAnonMessage, sent }: any) {
+function RenderElement({ el, onSendAnon, anonMessage, setAnonMessage, sent, isReplyEnabled, publicReplies, onTrackClick }: any) {
   const { type, content } = el;
+  const visualStyle = toElementStyle(el.style);
 
   if (type === 'text') {
+    const alignClass = content.align === 'left' ? 'text-left' : content.align === 'right' ? 'text-right' : 'text-center';
     return (
       <div className={cn(
-        "text-chocolate font-bold text-center leading-tight mx-auto px-4",
+        "text-chocolate font-bold leading-tight mx-auto px-4",
+        alignClass,
         content.size === '6xl' ? 'text-4xl md:text-5xl font-black mb-4' : 'text-lg opacity-80'
       )}>
         {content.text}
@@ -186,8 +253,12 @@ function RenderElement({ el, onSendAnon, anonMessage, setAnonMessage, sent }: an
         whileHover={{ scale: 1.02 }}
         whileTap={{ scale: 0.98 }}
         href={content.url}
+        onClick={() => {
+          void onTrackClick(el.id);
+        }}
         target="_blank"
         rel="noopener noreferrer"
+        style={visualStyle}
         className="w-full p-5 bg-white border border-chocolate/5 rounded-[2rem] text-chocolate font-bold flex items-center justify-between group soft-shadow"
       >
         <div className="flex items-center gap-4">
@@ -235,21 +306,38 @@ function RenderElement({ el, onSendAnon, anonMessage, setAnonMessage, sent }: an
           >
             {sent ? <><CheckCircle2 /> 已傳送</> : <><Send size={18} /> 送出悄悄話</>}
           </button>
+
+          {isReplyEnabled && (
+            <div className="pt-4 space-y-3 border-t border-white/15">
+              <div className="text-xs font-bold tracking-widest uppercase text-white/80">公開回覆</div>
+              {publicReplies.length === 0 ? (
+                <div className="text-sm text-white/55">目前還沒有公開回覆</div>
+              ) : (
+                publicReplies.slice(0, 8).map((row: AnonResponse) => (
+                  <div key={row.id} className="rounded-2xl bg-white/10 border border-white/20 p-4 space-y-2">
+                    <div className="text-[11px] text-white/60">{row.message}</div>
+                    <div className="text-sm text-white font-medium">{row.reply}</div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
         </div>
       </div>
     );
   }
 
   if (type === 'image') {
-    return <img src={content.url} className="w-full h-auto rounded-[3rem] shadow-xl border-4 border-white" alt="card image" />;
+    return <img src={content.url} style={visualStyle} className="w-full h-auto rounded-[3rem] shadow-xl border-4 border-white" alt="card image" />;
   }
 
   if (type === 'embed') {
-    if (!content.html) return null;
+    const embedHtml = content.html || buildEmbedHtmlFromUrl(content.url || '');
+    if (!embedHtml) return null;
     return (
       <div 
         className="w-full rounded-[2rem] overflow-hidden shadow-xl border-4 border-white bg-cream flex flex-col items-center justify-center embed-container"
-        dangerouslySetInnerHTML={{ __html: content.html }}
+        dangerouslySetInnerHTML={{ __html: embedHtml }}
       />
     );
   }

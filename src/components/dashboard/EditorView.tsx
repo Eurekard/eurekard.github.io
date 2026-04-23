@@ -8,6 +8,8 @@ import { cn } from '../../lib/utils';
 import { compressImageForWeb } from '../../lib/imageCompression';
 import { uploadImageToR2 } from '../../lib/r2Upload';
 import { useAuth } from '../../context/AuthContext';
+import { buildEmbedHtmlFromUrl } from '../../lib/embed';
+import { toElementStyle } from '../../lib/cardStyle';
 
 const ELEMENT_TYPES = [
   { type: 'text', label: '文字', icon: Type },
@@ -193,7 +195,7 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
           className="h-14 px-8 rounded-full flex items-center justify-center gap-2 bg-chocolate text-white font-bold transition-all shadow-xl hover:scale-105 active:scale-95 disabled:opacity-50 disabled:hover:scale-100 truncate"
         >
           <Save size={20} />
-          {saving ? '保存中...' : '儲存發布'}
+          {saving ? '保存中...' : ''}
         </button>
         <button 
           onClick={() => { setIsAddDrawerOpen(!isAddDrawerOpen); setSelectedId(null); }}
@@ -330,17 +332,21 @@ function getInitialContent(type: string) {
     case 'button': return { label: '點擊按鈕', url: 'https://', icon: 'Link' };
     case 'image': return { url: 'https://images.unsplash.com/photo-1493612276216-ee3925520721?w=800&auto=format&fit=crop', alt: '靈感圖片' };
     case 'anon_box': return { title: '跟我說些悄悄話吧', placeholder: '在此輸入...' };
+    case 'embed': return { url: '', html: '' };
     default: return {};
   }
 }
 
 function ElementPreview({ el }: { el: CardElement }) {
   const { type, content } = el;
+  const visualStyle = toElementStyle(el.style);
 
   if (type === 'text') {
+    const alignClass = content.align === 'left' ? 'text-left' : content.align === 'right' ? 'text-right' : 'text-center';
     return (
       <div className={cn(
-        "text-chocolate font-bold text-center leading-tight mx-auto px-4",
+        "text-chocolate font-bold leading-tight mx-auto px-4",
+        alignClass,
         content.size === '6xl' ? 'text-4xl md:text-5xl font-black mb-4' : 'text-lg opacity-80'
       )}>
         {content.text}
@@ -350,7 +356,7 @@ function ElementPreview({ el }: { el: CardElement }) {
 
   if (type === 'button') {
     return (
-      <div className="w-full p-5 bg-white border border-chocolate/5 rounded-[2rem] text-chocolate font-bold flex items-center justify-between group soft-shadow pointer-events-none">
+      <div style={visualStyle} className="w-full p-5 bg-white border border-chocolate/5 rounded-[2rem] text-chocolate font-bold flex items-center justify-between group soft-shadow pointer-events-none">
         <div className="flex items-center gap-4">
           <div className="w-10 h-10 bg-cream rounded-2xl flex items-center justify-center text-cat-blue">
             <LinkIcon size={18} />
@@ -386,23 +392,24 @@ function ElementPreview({ el }: { el: CardElement }) {
   }
 
   if (type === 'image') {
-    return <img src={content.url} className="w-full h-auto rounded-[3rem] shadow-xl border-4 border-white pointer-events-none" alt="preview" />;
+    return <img src={content.url} style={visualStyle} className="w-full h-auto rounded-[3rem] shadow-xl border-4 border-white pointer-events-none" alt="preview" />;
   }
   
   if (type === 'embed') {
-    if (!content.html) {
+    const embedHtml = content.html || buildEmbedHtmlFromUrl(content.url || '');
+    if (!embedHtml) {
       return (
         <div className="w-full rounded-[2rem] overflow-hidden shadow-xl border-4 border-white bg-cream flex flex-col items-center justify-center p-8 text-center pointer-events-none">
            <Play className="text-chocolate/20 mb-4" size={48} />
            <p className="font-bold text-chocolate">嵌入內容區域</p>
-           <p className="text-xs text-chocolate/50 font-mono mt-2 truncate w-full">請在屬性面板貼上 iframe 代碼</p>
+           <p className="text-xs text-chocolate/50 font-mono mt-2 truncate w-full">請在屬性面板貼上影音連結或 iframe 代碼</p>
         </div>
       );
     }
     return (
       <div 
         className="w-full rounded-[2rem] overflow-hidden shadow-xl border-4 border-white bg-cream flex flex-col items-center justify-center pointer-events-none"
-        dangerouslySetInnerHTML={{ __html: content.html }}
+        dangerouslySetInnerHTML={{ __html: embedHtml }}
       />
     );
   }
@@ -509,6 +516,13 @@ function InspectorControls({ el, onUpdate }: { el: CardElement, onUpdate: (u: an
   };
 
   if (type === 'text') {
+    const sizeOptions = [
+      { value: 'sm', label: '小' },
+      { value: 'md', label: '中' },
+      { value: 'lg', label: '大' },
+      { value: '6xl', label: '特大' },
+    ];
+
     return (
       <div className="space-y-4">
         <label className="block text-xs font-bold text-chocolate/40">文字內容</label>
@@ -519,13 +533,32 @@ function InspectorControls({ el, onUpdate }: { el: CardElement, onUpdate: (u: an
         />
         <label className="block text-xs font-bold text-chocolate/40">字體大小</label>
         <div className="flex gap-2">
-          {['sm', 'md', 'lg', '6xl'].map(s => (
+          {sizeOptions.map((s) => (
             <button 
-              key={s} 
-              onClick={() => handleChange('size', s)}
-              className={cn("flex-1 py-2 rounded-lg text-xs font-bold", content.size === s ? 'bg-chocolate text-white' : 'bg-cream text-chocolate/40')}
+              key={s.value}
+              onClick={() => handleChange('size', s.value)}
+              className={cn("flex-1 py-2 rounded-lg text-xs font-bold", content.size === s.value ? 'bg-chocolate text-white' : 'bg-cream text-chocolate/40')}
             >
-              {s.toUpperCase()}
+              {s.label}
+            </button>
+          ))}
+        </div>
+        <label className="block text-xs font-bold text-chocolate/40">對齊方式</label>
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            { value: 'left', label: '靠左' },
+            { value: 'center', label: '置中' },
+            { value: 'right', label: '靠右' },
+          ].map((option) => (
+            <button
+              key={option.value}
+              onClick={() => handleChange('align', option.value)}
+              className={cn(
+                'py-2 rounded-lg text-xs font-bold',
+                (content.align || 'center') === option.value ? 'bg-chocolate text-white' : 'bg-cream text-chocolate/40'
+              )}
+            >
+              {option.label}
             </button>
           ))}
         </div>
@@ -575,7 +608,18 @@ function InspectorControls({ el, onUpdate }: { el: CardElement, onUpdate: (u: an
   if (type === 'embed') {
     return (
       <div className="space-y-4">
-        <label className="block text-xs font-bold text-chocolate/40">嵌入代碼 (iframe HTML)</label>
+        <label className="block text-xs font-bold text-chocolate/40">影音平台連結</label>
+        <input
+          value={content.url || ''}
+          onChange={(e) => {
+            const url = e.target.value;
+            handleChange('url', url);
+            handleChange('html', buildEmbedHtmlFromUrl(url));
+          }}
+          className="w-full p-4 bg-cream border-none rounded-xl text-sm outline-none focus:ring-2 ring-cat-blue/20"
+          placeholder="貼上 YouTube、Spotify 連結"
+        />
+        <label className="block text-xs font-bold text-chocolate/40">或貼 iframe 代碼</label>
         <textarea 
           value={content.html || ''}
           onChange={(e) => handleChange('html', e.target.value)}
@@ -584,11 +628,10 @@ function InspectorControls({ el, onUpdate }: { el: CardElement, onUpdate: (u: an
           placeholder='<iframe src="https://open.spotify.com/embed/..." ...></iframe>'
         />
         <div className="p-4 bg-chocolate/5 rounded-xl border border-chocolate/10">
-          <p className="text-xs font-bold text-chocolate mb-2">如何嵌入串流平台？</p>
+          <p className="text-xs font-bold text-chocolate mb-2">支援方式</p>
           <ul className="text-xs text-chocolate/60 space-y-2 list-disc pl-4">
-            <li><strong>Spotify:</strong> 在歌曲/播放清單點擊「分享」 {'>'} 「嵌入單曲」，複製代碼並貼在上方。</li>
-            <li><strong>YouTube:</strong> 在影片點擊「分享」 {'>'} 「嵌入」，複製代碼並貼在上方。</li>
-            <li><strong>其他平台:</strong> 任何支援 iframe 嵌入的服務皆可使用此方法。</li>
+            <li><strong>YouTube / Spotify:</strong> 直接貼上影音連結，系統會自動轉成播放器。</li>
+            <li><strong>其他平台:</strong> 可貼上 iframe 嵌入代碼。</li>
           </ul>
         </div>
       </div>
