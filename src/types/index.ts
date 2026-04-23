@@ -13,7 +13,7 @@ export interface UserProfile {
 
 export interface CardElement {
   id: string;
-  type: 'text' | 'button' | 'image' | 'gallery' | 'section' | 'dropdown' | 'tags' | 'embed' | 'countdown' | 'visitor' | 'mood' | 'anon_box';
+  type: 'text' | 'button' | 'image' | 'gallery' | 'section' | 'dropdown' | 'tags' | 'embed' | 'music' | 'countdown' | 'visitor' | 'mood' | 'anon_box';
   content: any;
   style: any;
 }

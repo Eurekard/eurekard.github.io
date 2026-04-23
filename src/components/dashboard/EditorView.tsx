@@ -10,6 +10,9 @@ import { uploadImageToR2 } from '../../lib/r2Upload';
 import { useAuth } from '../../context/AuthContext';
 import { buildEmbedHtmlFromUrl } from '../../lib/embed';
 import { DEFAULT_PALETTE, resolveGlobalStyles, toElementStyle, toGlobalPageStyle } from '../../lib/cardStyle';
+import DOMPurify from 'dompurify';
+import { marked } from 'marked';
+import EmojiPicker from 'emoji-picker-react';
 
 const ELEMENT_TYPES = [
   { type: 'text', label: '文字', icon: Type },
@@ -21,7 +24,10 @@ const ELEMENT_TYPES = [
   { type: 'tags', label: '標籤', icon: Tag },
   { type: 'anon_box', label: '匿名箱', icon: Heart },
   { type: 'embed', label: '影音嵌入', icon: Play },
+  { type: 'music', label: '音樂歌單', icon: Music },
   { type: 'countdown', label: '倒計時', icon: Timer },
+  { type: 'visitor', label: '訪客計數器', icon: Eye },
+  { type: 'mood', label: '心情按鈕', icon: Heart },
 ];
 
 export default function EditorView({ cardData, ownerUid }: { cardData: CardData; ownerUid: string | null }) {
@@ -375,8 +381,19 @@ function getInitialContent(type: string) {
         { text: '開發', icon: '💻' },
       ],
     };
+    case 'gallery': return {
+      layout: 'grid',
+      fill: true,
+      images: [
+        { url: 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?w=800&auto=format&fit=crop', caption: '第一張圖片', link: '' },
+      ],
+    };
     case 'anon_box': return { title: '跟我說些悄悄話吧', placeholder: '在此輸入...' };
     case 'embed': return { url: '', html: '' };
+    case 'music': return { url: '', html: '' };
+    case 'countdown': return { title: '活動倒數', targetAt: new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString() };
+    case 'visitor': return { title: '訪客次數', prefix: '👀' };
+    case 'mood': return { title: '按下喜歡', emoji: '❤️' };
     default: return {};
   }
 }
@@ -392,6 +409,7 @@ function ElementPreview({ el, globalStyles }: { el: CardElement; globalStyles: G
 
   if (type === 'text') {
     const alignClass = content.align === 'left' ? 'text-left' : content.align === 'right' ? 'text-right' : 'text-center';
+    const html = DOMPurify.sanitize(marked.parse(String(content.text || ''), { breaks: true }) as string);
     return (
       <div
         style={{ color: globalStyles.textColor }}
@@ -401,7 +419,7 @@ function ElementPreview({ el, globalStyles }: { el: CardElement; globalStyles: G
           content.size === '6xl' ? 'text-4xl md:text-5xl font-black mb-4' : 'text-lg opacity-80'
         )}
       >
-        {content.text}
+        <div className="prose prose-sm max-w-none prose-p:my-2 prose-strong:font-black prose-a:underline" dangerouslySetInnerHTML={{ __html: html }} />
       </div>
     );
   }
@@ -460,6 +478,28 @@ function ElementPreview({ el, globalStyles }: { el: CardElement; globalStyles: G
 
   if (type === 'image') {
     return <img src={content.url} style={{ borderColor: globalStyles.componentBorderColor, ...visualStyle }} className="w-full h-auto rounded-[3rem] border pointer-events-none" alt="preview" />;
+  }
+
+  if (type === 'gallery') {
+    const images = Array.isArray(content.images) ? content.images : [];
+    if (images.length === 0) {
+      return <div style={baseComponentStyle} className="w-full p-6 rounded-[2rem] border text-sm opacity-60">圖庫尚未新增圖片</div>;
+    }
+    if (content.layout === 'slideshow') {
+      return (
+        <div style={{ ...baseComponentStyle, ...visualStyle }} className="w-full rounded-[2rem] border overflow-hidden">
+          <img src={images[0].url} alt={images[0].caption || 'gallery'} className={cn('w-full h-56', content.fill ? 'object-cover' : 'object-contain bg-black/5')} />
+          <div className="p-3 text-sm font-medium">{images[0].caption || '圖庫圖片'}</div>
+        </div>
+      );
+    }
+    return (
+      <div className="grid grid-cols-2 gap-2">
+        {images.slice(0, 4).map((img: any, idx: number) => (
+          <img key={`g-${idx}`} src={img.url} alt={img.caption || `圖庫 ${idx + 1}`} className={cn('w-full h-28 rounded-xl border', content.fill ? 'object-cover' : 'object-contain bg-black/5')} style={{ borderColor: globalStyles.componentBorderColor }} />
+        ))}
+      </div>
+    );
   }
 
   if (type === 'section') {
@@ -537,6 +577,57 @@ function ElementPreview({ el, globalStyles }: { el: CardElement; globalStyles: G
         className="w-full rounded-[2rem] overflow-hidden border bg-cream flex flex-col items-center justify-center pointer-events-none"
       >
         <StableEmbedHtml embedHtml={embedHtml} />
+      </div>
+    );
+  }
+
+  if (type === 'music') {
+    const embedHtml = content.html || buildEmbedHtmlFromUrl(content.url || '');
+    if (!embedHtml) {
+      return (
+        <div style={baseComponentStyle} className="w-full rounded-[2rem] border p-6 text-center">
+          <Music className="mx-auto mb-2 opacity-40" />
+          <div className="text-sm opacity-70">貼上 Spotify / YouTube Music 連結</div>
+        </div>
+      );
+    }
+    return (
+      <div style={{ ...baseComponentStyle, ...visualStyle }} className="w-full rounded-[2rem] border overflow-hidden pointer-events-none">
+        <div className="px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Music size={18} className="opacity-70" />
+            <div className="text-sm font-bold opacity-80">音樂播放器</div>
+          </div>
+          <div className="text-xs opacity-60 truncate max-w-[120px]">{(content.url || '').replace(/^https?:\/\//, '')}</div>
+        </div>
+        <div className="px-4 pb-4">
+          <div className="rounded-xl overflow-hidden border" style={{ borderColor: globalStyles.componentBorderColor }}>
+            <StableEmbedHtml embedHtml={embedHtml} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (type === 'countdown') {
+    return <CountdownBlock title={content.title} targetAt={content.targetAt} style={baseComponentStyle} />;
+  }
+
+  if (type === 'visitor') {
+    return (
+      <div style={{ ...baseComponentStyle, ...visualStyle }} className="w-full rounded-[2rem] border p-5 text-center font-bold">
+        <div className="text-sm opacity-70">{content.title || '訪客次數'}</div>
+        <div className="text-2xl mt-1">{content.prefix || '👀'} 128</div>
+      </div>
+    );
+  }
+
+  if (type === 'mood') {
+    return (
+      <div style={{ ...baseComponentStyle, ...visualStyle }} className="w-full rounded-[2rem] border p-5 text-center">
+        <button className="px-5 py-3 rounded-xl border font-bold" style={{ borderColor: globalStyles.componentBorderColor }}>
+          {content.emoji || '❤️'} {content.title || '按下喜歡'} 42
+        </button>
       </div>
     );
   }
@@ -910,6 +1001,27 @@ const StableEmbedHtml = React.memo(
   (prev, next) => prev.embedHtml === next.embedHtml
 );
 
+function CountdownBlock({ title, targetAt, style }: { title?: string; targetAt?: string; style?: React.CSSProperties }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const target = targetAt ? new Date(targetAt).getTime() : 0;
+  const diff = Math.max(0, target - now);
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+  const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
+  const mins = Math.floor((diff / (1000 * 60)) % 60);
+  const secs = Math.floor((diff / 1000) % 60);
+
+  return (
+    <div style={style} className="w-full rounded-[2rem] border p-5 text-center font-bold">
+      <div className="text-sm opacity-70">{title || '活動倒數'}</div>
+      <div className="mt-2 text-xl tabular-nums">{days}天 {hours}時 {mins}分 {secs}秒</div>
+    </div>
+  );
+}
+
 function InspectorControls({ el, onUpdate }: { el: CardElement, onUpdate: (u: any) => void }) {
   const { type, content } = el;
   
@@ -933,6 +1045,18 @@ function InspectorControls({ el, onUpdate }: { el: CardElement, onUpdate: (u: an
           onChange={(e) => handleChange('text', e.target.value)}
           className="w-full p-4 bg-cream border-none rounded-xl focus:ring-2 ring-cat-blue/20 outline-none text-sm min-h-[100px]"
         />
+        <details className="rounded-xl border border-chocolate/10 bg-white/60 p-3">
+          <summary className="cursor-pointer text-xs font-bold text-chocolate/60">支援 Markdown 語法（點擊展開）</summary>
+          <div className="mt-3 text-xs text-chocolate/70 space-y-2">
+            <div><span className="font-black">換行</span>：直接輸入換行即可</div>
+            <div><span className="font-black">粗體</span>：<code>**粗體**</code></div>
+            <div><span className="font-black">斜體</span>：<code>*斜體*</code></div>
+            <div><span className="font-black">連結</span>：<code>[文字](https://example.com)</code></div>
+            <div><span className="font-black">清單</span>：<code>- 項目</code></div>
+            <div><span className="font-black">引用</span>：<code>&gt; 引用文字</code></div>
+            <div><span className="font-black">程式碼</span>：<code>`code`</code></div>
+          </div>
+        </details>
         <label className="block text-xs font-bold text-chocolate/40">字體大小</label>
         <div className="flex gap-2">
           {sizeOptions.map((s) => (
@@ -1045,6 +1169,117 @@ function InspectorControls({ el, onUpdate }: { el: CardElement, onUpdate: (u: an
     );
   }
 
+  if (type === 'music') {
+    return (
+      <div className="space-y-4">
+        <label className="block text-xs font-bold text-chocolate/40">音樂平台連結</label>
+        <input
+          value={content.url || ''}
+          onChange={(e) => {
+            const url = e.target.value;
+            onUpdate({ content: { ...content, url, html: buildEmbedHtmlFromUrl(url) } });
+          }}
+          className="w-full p-4 bg-cream border-none rounded-xl text-sm outline-none focus:ring-2 ring-cat-blue/20"
+          placeholder="貼上 Spotify 或 YouTube Music 連結"
+        />
+        <label className="block text-xs font-bold text-chocolate/40">或貼 iframe 代碼</label>
+        <textarea
+          value={content.html || ''}
+          onChange={(e) => handleChange('html', e.target.value)}
+          rows={4}
+          className="w-full p-4 bg-cream border-none rounded-xl font-mono text-xs outline-none focus:ring-2 ring-cat-blue/20"
+        />
+      </div>
+    );
+  }
+
+  if (type === 'gallery') {
+    const images = content.images || [];
+    const updateImages = (nextImages: Array<{ url: string; caption?: string; link?: string }>) => handleChange('images', nextImages);
+    return (
+      <div className="space-y-4">
+        <label className="block text-xs font-bold text-chocolate/40">圖庫版型</label>
+        <select value={content.layout || 'grid'} onChange={(e) => handleChange('layout', e.target.value)} className="w-full p-4 bg-cream border-none rounded-xl text-sm outline-none">
+          <option value="grid">網格</option>
+          <option value="slideshow">幻燈片</option>
+        </select>
+        <label className="block text-xs font-bold text-chocolate/40">圖片呈現</label>
+        <select value={content.fill ? 'fill' : 'contain'} onChange={(e) => handleChange('fill', e.target.value === 'fill')} className="w-full p-4 bg-cream border-none rounded-xl text-sm outline-none">
+          <option value="fill">填滿裁切</option>
+          <option value="contain">完整顯示</option>
+        </select>
+        <label className="block text-xs font-bold text-chocolate/40">圖片清單</label>
+        <div className="space-y-2">
+          {images.map((img: any, index: number) => (
+            <div key={`gallery-${index}`} className="space-y-2 rounded-xl border border-chocolate/10 p-2 bg-white/70">
+              <GalleryImageUpload
+                onUploadComplete={(url) => {
+                  const next = [...images];
+                  next[index] = { ...next[index], url };
+                  updateImages(next);
+                }}
+              />
+              <input value={img.url || ''} onChange={(e) => {
+                const next = [...images];
+                next[index] = { ...next[index], url: e.target.value };
+                updateImages(next);
+              }} className="w-full p-3 bg-cream rounded-xl text-xs outline-none" placeholder="圖片網址" />
+              <input value={img.caption || ''} onChange={(e) => {
+                const next = [...images];
+                next[index] = { ...next[index], caption: e.target.value };
+                updateImages(next);
+              }} className="w-full p-3 bg-cream rounded-xl text-xs outline-none" placeholder="圖片說明（可留白）" />
+              <input value={img.link || ''} onChange={(e) => {
+                const next = [...images];
+                next[index] = { ...next[index], link: e.target.value };
+                updateImages(next);
+              }} className="w-full p-3 bg-cream rounded-xl text-xs outline-none" placeholder="點擊連結（可留白）" />
+              <button onClick={() => updateImages(images.filter((_: any, i: number) => i !== index))} className="w-9 h-9 inline-flex items-center justify-center bg-red-50 text-red-500 rounded-xl">
+                <Trash2 size={15} />
+              </button>
+            </div>
+          ))}
+          <button onClick={() => updateImages([...images, { url: '', caption: '', link: '' }])} className="w-full p-3 rounded-xl text-xs font-bold bg-white border border-chocolate/10 hover:bg-chocolate hover:text-white transition-colors">
+            新增圖片
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (type === 'countdown') {
+    return (
+      <div className="space-y-4">
+        <label className="block text-xs font-bold text-chocolate/40">倒數標題</label>
+        <input value={content.title || ''} onChange={(e) => handleChange('title', e.target.value)} className="w-full p-4 bg-cream border-none rounded-xl text-sm outline-none focus:ring-2 ring-cat-blue/20" />
+        <label className="block text-xs font-bold text-chocolate/40">目標時間</label>
+        <input type="datetime-local" value={toLocalDatetimeInputValue(content.targetAt)} onChange={(e) => handleChange('targetAt', fromLocalDatetimeInputValue(e.target.value))} className="w-full p-4 bg-cream border-none rounded-xl text-sm outline-none focus:ring-2 ring-cat-blue/20" />
+      </div>
+    );
+  }
+
+  if (type === 'visitor') {
+    return (
+      <div className="space-y-4">
+        <label className="block text-xs font-bold text-chocolate/40">標題</label>
+        <input value={content.title || ''} onChange={(e) => handleChange('title', e.target.value)} className="w-full p-4 bg-cream border-none rounded-xl text-sm outline-none focus:ring-2 ring-cat-blue/20" />
+        <label className="block text-xs font-bold text-chocolate/40">前綴圖示</label>
+        <input value={content.prefix || ''} onChange={(e) => handleChange('prefix', e.target.value)} className="w-full p-4 bg-cream border-none rounded-xl text-sm outline-none focus:ring-2 ring-cat-blue/20" placeholder="例如 👀" />
+      </div>
+    );
+  }
+
+  if (type === 'mood') {
+    return (
+      <div className="space-y-4">
+        <label className="block text-xs font-bold text-chocolate/40">按鈕文字</label>
+        <input value={content.title || ''} onChange={(e) => handleChange('title', e.target.value)} className="w-full p-4 bg-cream border-none rounded-xl text-sm outline-none focus:ring-2 ring-cat-blue/20" />
+        <label className="block text-xs font-bold text-chocolate/40">心情圖示</label>
+        <EmojiPickerControl value={content.emoji || '❤️'} onChange={(emoji) => handleChange('emoji', emoji)} />
+      </div>
+    );
+  }
+
   if (type === 'anon_box') {
     return (
       <div className="space-y-4">
@@ -1113,9 +1348,12 @@ function InspectorControls({ el, onUpdate }: { el: CardElement, onUpdate: (u: an
           placeholder="例如：快速導覽"
         />
         <label className="block text-xs font-bold text-chocolate/40">選項列表</label>
-        <div className="space-y-2">
+        <Reorder.Group axis="y" values={items} onReorder={updateItems} className="space-y-2">
           {items.map((item: { label: string; url: string }, index: number) => (
-            <div key={`dropdown-item-${index}`} className="flex items-center gap-2">
+            <Reorder.Item key={`dropdown-item-${index}`} value={item} className="flex items-center gap-2">
+              <div className="w-9 h-9 shrink-0 inline-flex items-center justify-center rounded-xl bg-white border border-chocolate/10 text-chocolate/40 cursor-move">
+                <GripVertical size={16} />
+              </div>
               <input
                 value={item.label}
                 onChange={(e) => {
@@ -1143,15 +1381,15 @@ function InspectorControls({ el, onUpdate }: { el: CardElement, onUpdate: (u: an
               >
                 <Trash2 size={15} />
               </button>
-            </div>
+            </Reorder.Item>
           ))}
+        </Reorder.Group>
           <button
             onClick={() => updateItems([...items, { label: `項目 ${items.length + 1}`, url: '#' }])}
             className="w-full p-3 rounded-xl text-xs font-bold bg-white border border-chocolate/10 hover:bg-chocolate hover:text-white transition-colors"
           >
             新增選項
           </button>
-        </div>
       </div>
     );
   }
@@ -1276,5 +1514,102 @@ function SortableElementItem({
       </button>
       {children}
     </Reorder.Item>
+  );
+}
+
+function toLocalDatetimeInputValue(value?: string): string {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const tzOffset = date.getTimezoneOffset() * 60000;
+  return new Date(date.getTime() - tzOffset).toISOString().slice(0, 16);
+}
+
+function fromLocalDatetimeInputValue(value?: string): string {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toISOString();
+}
+
+function GalleryImageUpload({ onUploadComplete }: { onUploadComplete: (url: string) => void }) {
+  const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      alert('請上傳圖片檔案 (JPG, PNG, GIF, WebP)');
+      return;
+    }
+    setUploading(true);
+    setProgress(5);
+    try {
+      const compressed = await compressImageForWeb(file);
+      const safeBaseName = file.name.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9._-]/g, '_') || 'gallery';
+      const uploadedUrl = await uploadImageToR2({
+        blob: compressed.blob,
+        fileName: safeBaseName,
+        contentType: compressed.mimeType,
+        onProgress: (p) => setProgress(Math.min(99, Math.max(5, p))),
+      });
+      setProgress(100);
+      onUploadComplete(uploadedUrl);
+    } catch (error) {
+      console.error(error);
+      alert('上傳失敗，請檢查 R2 設定或稍後再試');
+    } finally {
+      setTimeout(() => {
+        setUploading(false);
+        setProgress(0);
+      }, 250);
+    }
+  };
+
+  return (
+    <label className="relative block overflow-hidden rounded-xl border-2 border-dashed border-chocolate/15 bg-white/80 hover:border-cat-blue/60 transition-colors cursor-pointer">
+      <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" disabled={uploading} />
+      <div className="py-3 px-3 text-center">
+        {uploading ? (
+          <div className="text-xs font-bold text-cat-blue">上傳中 {progress}%</div>
+        ) : (
+          <div className="text-xs font-bold text-chocolate/60">上傳圖庫圖片</div>
+        )}
+      </div>
+      {uploading && <div className="absolute left-0 bottom-0 h-1 bg-cat-blue" style={{ width: `${progress}%` }} />}
+    </label>
+  );
+}
+
+function EmojiPickerControl({ value, onChange }: { value: string; onChange: (emoji: string) => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full p-4 bg-cream rounded-xl text-sm outline-none focus:ring-2 ring-cat-blue/20 flex items-center justify-between"
+      >
+        <span className="text-lg">{value}</span>
+        <span className="text-xs font-bold text-chocolate/40">選擇表情符號</span>
+      </button>
+      {open && (
+        <div className="absolute z-50 mt-2">
+          <div className="fixed inset-0" onClick={() => setOpen(false)} />
+          <div className="relative">
+            <EmojiPicker
+              onEmojiClick={(emojiData: any) => {
+                onChange(emojiData.emoji);
+                setOpen(false);
+              }}
+              searchDisabled={false}
+              skinTonesDisabled
+              lazyLoadEmojis
+            />
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

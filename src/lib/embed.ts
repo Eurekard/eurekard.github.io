@@ -1,5 +1,6 @@
 const YOUTUBE_REGEX = /(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{6,})/;
 const SPOTIFY_REGEX = /open\.spotify\.com\/(track|playlist|album|episode)\/([a-zA-Z0-9]+)/;
+const YOUTUBE_MUSIC_REGEX = /music\.youtube\.com\/(?:watch\?v=)([a-zA-Z0-9_-]{6,})/;
 
 export function buildEmbedHtmlFromUrl(rawUrl: string): string {
   const input = rawUrl.trim();
@@ -9,6 +10,12 @@ export function buildEmbedHtmlFromUrl(rawUrl: string): string {
   if (youtubeMatch?.[1]) {
     const id = youtubeMatch[1];
     return `<iframe width="100%" height="360" src="https://www.youtube.com/embed/${id}" title="YouTube video" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>`;
+  }
+
+  const ytmMatch = input.match(YOUTUBE_MUSIC_REGEX);
+  if (ytmMatch?.[1]) {
+    const id = ytmMatch[1];
+    return `<iframe width="100%" height="180" src="https://www.youtube.com/embed/${id}" title="YouTube Music" frameborder="0" allow="autoplay; clipboard-write; encrypted-media; picture-in-picture" allowfullscreen></iframe>`;
   }
 
   const spotifyMatch = input.match(SPOTIFY_REGEX);

@@ -1,14 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { db } from '../lib/firebase';
-import { doc, getDoc, collection, addDoc, query, onSnapshot, where } from 'firebase/firestore';
+import { doc, getDoc, collection, addDoc, query, onSnapshot, where, setDoc, increment } from 'firebase/firestore';
 import { CardData, AnonResponse } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
-import { Heart, Send, ExternalLink, MessageSquare } from 'lucide-react';
+import { Heart, Send, ExternalLink, MessageSquare, Music, Eye } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { buildEmbedHtmlFromUrl } from '../lib/embed';
 import { isHashLink, normalizeLinkTarget, resolveGlobalStyles, toElementStyle, toGlobalPageStyle } from '../lib/cardStyle';
 import { detectDevice, detectSource, getAnalyticsDay } from '../lib/analytics';
+import DOMPurify from 'dompurify';
+import { marked } from 'marked';
 
 export default function Profile() {
   const { username } = useParams();
@@ -223,6 +225,7 @@ export default function Profile() {
             <RenderElement
               key={el.id}
               el={el}
+              cardId={data.uid}
               onSendAnon={() => handleSendAnon(data.uid)}
               anonMessage={anonMessage}
               setAnonMessage={setAnonMessage}
@@ -248,6 +251,7 @@ export default function Profile() {
                 <RenderElement
                   key={el.id}
                   el={el}
+                  cardId={data.uid}
                   onSendAnon={() => handleSendAnon(data.uid)}
                   anonMessage={anonMessage}
                   setAnonMessage={setAnonMessage}
@@ -266,6 +270,7 @@ export default function Profile() {
             <RenderElement
               key={el.id}
               el={el}
+              cardId={data.uid}
               onSendAnon={() => handleSendAnon(data.uid)}
               anonMessage={anonMessage}
               setAnonMessage={setAnonMessage}
@@ -294,7 +299,7 @@ export default function Profile() {
   );
 }
 
-function RenderElement({ el, onSendAnon, anonMessage, setAnonMessage, sent, isReplyEnabled, publicReplies, onTrackClick, globalStyles, onHashNavigate }: any) {
+function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, sent, isReplyEnabled, publicReplies, onTrackClick, globalStyles, onHashNavigate }: any) {
   const { type, content } = el;
   const visualStyle = toElementStyle(el.style);
   const baseComponentStyle = {
@@ -305,6 +310,7 @@ function RenderElement({ el, onSendAnon, anonMessage, setAnonMessage, sent, isRe
 
   if (type === 'text') {
     const alignClass = content.align === 'left' ? 'text-left' : content.align === 'right' ? 'text-right' : 'text-center';
+    const html = DOMPurify.sanitize(marked.parse(String(content.text || ''), { breaks: true }) as string);
     return (
       <div
         style={{ color: globalStyles?.textColor }}
@@ -314,7 +320,7 @@ function RenderElement({ el, onSendAnon, anonMessage, setAnonMessage, sent, isRe
           content.size === '6xl' ? 'text-4xl md:text-5xl font-black mb-4' : 'text-lg opacity-80'
         )}
       >
-        {content.text}
+        <div className="prose prose-sm max-w-none prose-p:my-2 prose-strong:font-black prose-a:underline" dangerouslySetInnerHTML={{ __html: html }} />
       </div>
     );
   }
@@ -429,6 +435,18 @@ function RenderElement({ el, onSendAnon, anonMessage, setAnonMessage, sent, isRe
     return <img src={content.url} style={{ borderColor: globalStyles?.componentBorderColor, ...visualStyle }} className="w-full h-auto rounded-[3rem] border" alt="card image" />;
   }
 
+  if (type === 'gallery') {
+    return (
+      <GalleryBlock
+        content={content}
+        baseComponentStyle={baseComponentStyle}
+        visualStyle={visualStyle}
+        borderColor={globalStyles?.componentBorderColor}
+        onTrackClick={() => void onTrackClick(el.id)}
+      />
+    );
+  }
+
   if (type === 'section') {
     return null;
   }
@@ -479,7 +497,172 @@ function RenderElement({ el, onSendAnon, anonMessage, setAnonMessage, sent, isRe
     );
   }
 
+  if (type === 'music') {
+    const embedHtml = content.html || buildEmbedHtmlFromUrl(content.url || '');
+    if (!embedHtml) {
+      return (
+        <div style={{ ...baseComponentStyle, ...visualStyle }} className="w-full rounded-[2rem] border p-6 text-center">
+          <Music className="mx-auto mb-2 opacity-40" />
+          <div className="text-sm opacity-70">尚未設定音樂連結</div>
+        </div>
+      );
+    }
+    return (
+      <div style={{ ...baseComponentStyle, ...visualStyle }} className="w-full rounded-[2rem] border overflow-hidden">
+        <div className="px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Music size={18} className="opacity-70" />
+            <div className="text-sm font-bold opacity-80">音樂播放器</div>
+          </div>
+          <div className="text-xs opacity-60 truncate max-w-[140px]">{String(content.url || '').replace(/^https?:\/\//, '')}</div>
+        </div>
+        <div className="px-4 pb-4">
+          <div className="rounded-xl overflow-hidden border embed-container" style={{ borderColor: globalStyles?.componentBorderColor }} dangerouslySetInnerHTML={{ __html: embedHtml }} />
+        </div>
+      </div>
+    );
+  }
+
+  if (type === 'countdown') {
+    return <CountdownDisplay title={content.title} targetAt={content.targetAt} style={{ ...baseComponentStyle, ...visualStyle }} />;
+  }
+
+  if (type === 'visitor') {
+    return <VisitorCounter cardId={cardId} elementId={el.id} content={content} style={{ ...baseComponentStyle, ...visualStyle }} />;
+  }
+
+  if (type === 'mood') {
+    return <MoodCounter cardId={cardId} elementId={el.id} content={content} style={{ ...baseComponentStyle, ...visualStyle }} />;
+  }
+
   return null;
+}
+
+function GalleryBlock({
+  content,
+  baseComponentStyle,
+  visualStyle,
+  borderColor,
+  onTrackClick,
+}: {
+  content: any;
+  baseComponentStyle: React.CSSProperties;
+  visualStyle: React.CSSProperties;
+  borderColor?: string;
+  onTrackClick: () => void;
+}) {
+  const images = Array.isArray(content.images) ? content.images : [];
+  const [index, setIndex] = useState(0);
+  if (images.length === 0) {
+    return <div style={{ ...baseComponentStyle, ...visualStyle }} className="w-full rounded-[2rem] border p-6 text-sm opacity-60">圖庫尚未新增圖片</div>;
+  }
+
+  if (content.layout === 'slideshow') {
+    const current = images[index % images.length];
+    return (
+      <div style={{ ...baseComponentStyle, ...visualStyle, borderColor }} className="w-full rounded-[2rem] border overflow-hidden">
+        <a href={current.link || undefined} onClick={() => onTrackClick()} target={current.link ? '_blank' : undefined} rel={current.link ? 'noopener noreferrer' : undefined}>
+          <img src={current.url} alt={current.caption || 'gallery'} className={cn('w-full h-64', content.fill ? 'object-cover' : 'object-contain bg-black/5')} />
+        </a>
+        <div className="p-4 flex items-center justify-between">
+          <div className="text-sm font-medium truncate">{current.caption || `圖片 ${index + 1}`}</div>
+          <div className="flex gap-2">
+            <button onClick={() => setIndex((prev) => (prev - 1 + images.length) % images.length)} className="px-2 py-1 border rounded-lg text-xs">上一張</button>
+            <button onClick={() => setIndex((prev) => (prev + 1) % images.length)} className="px-2 py-1 border rounded-lg text-xs">下一張</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      {images.map((img: any, idx: number) => (
+        <a key={`g-grid-${idx}`} href={img.link || undefined} onClick={() => onTrackClick()} target={img.link ? '_blank' : undefined} rel={img.link ? 'noopener noreferrer' : undefined}>
+          <img src={img.url} alt={img.caption || `圖庫 ${idx + 1}`} className={cn('w-full h-36 rounded-xl border', content.fill ? 'object-cover' : 'object-contain bg-black/5')} style={{ borderColor }} />
+        </a>
+      ))}
+    </div>
+  );
+}
+
+function CountdownDisplay({ title, targetAt, style }: { title?: string; targetAt?: string; style?: React.CSSProperties }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const target = targetAt ? new Date(targetAt).getTime() : 0;
+  const diff = Math.max(0, target - now);
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+  const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
+  const mins = Math.floor((diff / (1000 * 60)) % 60);
+  const secs = Math.floor((diff / 1000) % 60);
+
+  return (
+    <div style={style} className="w-full rounded-[2rem] border p-5 text-center font-bold">
+      <div className="text-sm opacity-70">{title || '活動倒數'}</div>
+      <div className="mt-2 text-xl tabular-nums">{days}天 {hours}時 {mins}分 {secs}秒</div>
+    </div>
+  );
+}
+
+function VisitorCounter({ cardId, elementId, content, style }: { cardId: string; elementId: string; content: any; style?: React.CSSProperties }) {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    if (!cardId || !elementId) return;
+    const ref = doc(db, 'cards', cardId, 'element_stats', elementId);
+    const key = `eurekard:visitor:${cardId}:${elementId}`;
+    if (!window.localStorage.getItem(key)) {
+      window.localStorage.setItem(key, '1');
+      void setDoc(ref, { visitorCount: increment(1), updatedAt: new Date().toISOString() }, { merge: true });
+    }
+    const unsub = onSnapshot(ref, (snap) => {
+      setCount((snap.data() as any)?.visitorCount || 0);
+    });
+    return () => unsub();
+  }, [cardId, elementId]);
+
+  return (
+    <div style={style} className="w-full rounded-[2rem] border p-5 text-center font-bold">
+      <div className="text-sm opacity-70">{content?.title || '訪客次數'}</div>
+      <div className="text-2xl mt-1">{content?.prefix || '👀'} {count}</div>
+    </div>
+  );
+}
+
+function MoodCounter({ cardId, elementId, content, style }: { cardId: string; elementId: string; content: any; style?: React.CSSProperties }) {
+  const [count, setCount] = useState(0);
+  const localKey = `eurekard:mood:${cardId}:${elementId}`;
+  const [hasVoted, setHasVoted] = useState<boolean>(() => !!window.localStorage.getItem(localKey));
+
+  useEffect(() => {
+    if (!cardId || !elementId) return;
+    const ref = doc(db, 'cards', cardId, 'element_stats', `${elementId}_mood`);
+    const unsub = onSnapshot(ref, (snap) => {
+      setCount((snap.data() as any)?.moodCount || 0);
+    });
+    return () => unsub();
+  }, [cardId, elementId]);
+
+  const handleVote = async () => {
+    if (hasVoted) return;
+    window.localStorage.setItem(localKey, '1');
+    setHasVoted(true);
+    await setDoc(doc(db, 'cards', cardId, 'element_stats', `${elementId}_mood`), { moodCount: increment(1), updatedAt: new Date().toISOString() }, { merge: true });
+  };
+
+  return (
+    <button
+      onClick={handleVote}
+      disabled={hasVoted}
+      style={style}
+      className="w-full rounded-[2rem] border p-5 text-center font-bold disabled:opacity-50"
+    >
+      {content?.emoji || '❤️'} {content?.title || '按下喜歡'} {count}
+    </button>
+  );
 }
 
 function splitElementsBySection(elements: any[]) {
