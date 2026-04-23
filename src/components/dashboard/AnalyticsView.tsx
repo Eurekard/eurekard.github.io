@@ -28,13 +28,12 @@ export default function AnalyticsView({ cardId }: { cardId: string }) {
           <div className="flex justify-between items-center mb-8">
             <h3 className="text-xl font-display font-bold text-chocolate">瀏覽趨勢</h3>
             <select className="bg-cream/50 border-none rounded-xl px-4 py-2 text-sm font-bold text-chocolate outline-none">
-              <input type="text" value="過去 7 天" disabled className="bg-transparent" />
               <option>過去 7 天</option>
               <option>過去 30 天</option>
             </select>
           </div>
-          <div className="h-[300px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
+          <div className="h-[300px] w-full min-w-0">
+            <ResponsiveContainer width="100%" height="100%" debounce={1}>
               <AreaChart data={data}>
                 <defs>
                   <linearGradient id="colorViews" x1="0" y1="0" x2="0" y2="1">

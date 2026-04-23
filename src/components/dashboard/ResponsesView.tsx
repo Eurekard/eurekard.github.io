@@ -12,12 +12,10 @@ export default function ResponsesView({ cardId }: { cardId: string }) {
   const [filter, setFilter] = useState<'all' | 'unread' | 'archived'>('all');
   const [isOpen, setIsOpen] = useState(true);
   const [replyText, setReplyText] = useState<{ [id: string]: string }>({});
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (cardId === 'demo_user') {
-      setResponses([]);
-      return;
-    }
+    if (!cardId) return;
 
     const q = query(
       collection(db, 'cards', cardId, 'responses'),
@@ -25,11 +23,21 @@ export default function ResponsesView({ cardId }: { cardId: string }) {
     );
 
     const unsub = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as AnonResponse[];
+      const data = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as AnonResponse[];
       setResponses(data);
+      setLoading(false);
+    }, (error) => {
+      if (error.name !== 'AbortError') {
+        console.error("抓取回應失敗:", error);
+      }
     });
 
-    return () => unsub();
+    return () => {
+      unsub(); 
+    };
   }, [cardId]);
 
   const filteredResponses = responses.filter(r => {

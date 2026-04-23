@@ -21,27 +21,12 @@ export default function Dashboard() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!user) {
-      setCardData({
-        uid: 'demo_user',
-        username: 'eureka_maker',
-        published_content: { elements: [], styles: {} },
-        draft_content: { 
-          elements: [
-            { id: 'demo_1', type: 'text', content: { text: "歡迎來到尤里卡 (Eurekard)", size: '6xl' }, style: {} },
-            { id: 'demo_2', type: 'text', content: { text: "這是一個測試用的編輯器環境，無需登入即可體驗", size: 'md' }, style: {} }
-          ], 
-          styles: { theme: 'classic' } 
-        },
-        updatedAt: new Date().toISOString()
-      } as CardData);
-      return;
-    }
+    if (!user) return;
 
     const unsubCard = onSnapshot(doc(db, 'cards', user.uid), (currDoc) => {
       if (currDoc.exists()) {
         const d = currDoc.data() as CardData;
-        // Graceful fallback for older accounts created before the profile object existed
+        
         if (!d.profile?.avatarUrl && user.photoURL) {
           d.profile = { 
             ...(d.profile || {}), 
@@ -50,13 +35,16 @@ export default function Dashboard() {
           };
         }
         setCardData(d);
+      } else {
+      }
+    }, (error) => {
+      if (error.code !== 'cancelled') {
+        console.error("Firebase 監聽報鎖:", error);
       }
     });
 
-    return () => {
-      unsubCard();
-    };
-  }, [user]);
+    return () => unsubCard();
+  }, [user, navigate]);
 
   const handleCopyLink = () => {
     if (!profile) return;
