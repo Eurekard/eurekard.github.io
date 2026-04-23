@@ -25,8 +25,8 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
   const [saving, setSaving] = useState(false);
   const [isAddDrawerOpen, setIsAddDrawerOpen] = useState(false);
   const [profileData, setProfileData] = useState({
-    displayName: cardData?.profile?.displayName || cardData?.username || '',
-    avatarUrl: cardData?.profile?.avatarUrl || ''
+    displayName: cardData?.profile?.displayName || user?.displayName || cardData?.username || '',
+    avatarUrl: cardData?.profile?.avatarUrl || user?.photoURL || ''
   });
 
   useEffect(() => {
