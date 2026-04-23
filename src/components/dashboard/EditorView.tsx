@@ -3,7 +3,7 @@ import { CardData, CardElement } from '../../types';
 import { Plus, GripVertical, Trash2, Layout, Type, Image as ImageIcon, Link as LinkIcon, Play, Hash, Music, Timer, Heart, Settings2, Palette, Save, Eye, Sparkles, UploadCloud, Loader2 } from 'lucide-react';
 import { motion, Reorder, AnimatePresence } from 'motion/react';
 import { db } from '../../lib/firebase';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
 import { cn } from '../../lib/utils';
 import { compressImageForWeb } from '../../lib/imageCompression';
 import { uploadImageToR2 } from '../../lib/r2Upload';
@@ -63,7 +63,7 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
     }
 
     try {
-      await updateDoc(doc(db, 'cards', targetCardId), {
+      await setDoc(doc(db, 'cards', targetCardId), {
         uid: targetCardId,
         username: cardData.username || '',
         profile: {
@@ -79,7 +79,7 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
           elements
         },
         updatedAt: new Date().toISOString()
-      });
+      }, { merge: true });
       alert('已成功保存並發布！');
     } catch (err) {
       console.error('Save failed:', err);
