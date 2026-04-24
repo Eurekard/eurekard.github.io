@@ -83,13 +83,16 @@ service cloud.firestore {
       allow get: if true;
       allow list: if false;
       allow create: if isOwner(cardId) && isValidCard(incoming());
-      allow update: if isOwner(cardId);
+      allow update: if isOwner(cardId)
 
       // 2.0 Public element counters (visitor / mood)
       match /element_stats/{statId} {
         allow read: if true;
-        allow create: if isVisitorStatsWrite() || isMoodStatsWrite();
-        allow update: if isVisitorStatsWrite() || isMoodStatsWrite();
+        allow create, update: if 
+          incoming().diff(existing()).affectedKeys().hasOnly(['visitorCount', 'moodCount', 'updatedAt']) ||
+          (
+            incoming().keys().hasOnly(['visitorCount', 'moodCount', 'updatedAt'])
+          );
         allow delete: if false;
       }
       

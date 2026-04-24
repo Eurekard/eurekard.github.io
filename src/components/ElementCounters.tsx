@@ -102,7 +102,7 @@ export function MoodCounter({
       console.error(e);
       window.localStorage.removeItem(localKey);
       setHasVoted(false);
-      alert('投票失敗（可能是連線或權限規則尚未部署）。請稍後再試。');
+      alert('按讚失敗。請稍後再試。');
     }
   };
 

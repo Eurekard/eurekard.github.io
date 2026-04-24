@@ -547,7 +547,7 @@ function EditorGalleryPreview({
             {img.caption ? (
               <div className="pointer-events-none absolute inset-x-0 bottom-0 overflow-hidden opacity-0 transition-opacity duration-200 group-hover:opacity-100">
                 <div
-                  className="gallery-grid-caption w-full border-t px-3 py-2 text-xs font-bold line-clamp-3"
+                  className="gallery-grid-caption w-full px-3 py-2 text-xs font-bold line-clamp-3"
                   style={{
                     backgroundColor: componentBgColor,
                     color: textColor,
@@ -1461,7 +1461,7 @@ function InspectorControls({ el, onUpdate }: { el: CardElement, onUpdate: (u: an
         <label className="block text-xs font-bold text-chocolate/40">標題</label>
         <input value={content.title || ''} onChange={(e) => handleChange('title', e.target.value)} className="w-full p-4 bg-cream border-none rounded-xl text-sm outline-none focus:ring-2 ring-cat-blue/20" />
         <label className="block text-xs font-bold text-chocolate/40">前綴圖示</label>
-        <input value={content.prefix || ''} onChange={(e) => handleChange('prefix', e.target.value)} className="w-full p-4 bg-cream border-none rounded-xl text-sm outline-none focus:ring-2 ring-cat-blue/20" placeholder="例如 👀" />
+        <EmojiPickerControl value={content.prefix || '👀'} onChange={(emoji) => handleChange('prefix', emoji)} />
       </div>
     );
   }
