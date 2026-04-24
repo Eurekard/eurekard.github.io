@@ -170,10 +170,14 @@ function YouTubeBarPlayer({
       }
 
       const p = new YT.Player(hostRef.current, {
-        videoId: videoId || undefined,
+        videoId: videoId || '',
         width: 200,
         height: 200,
-        playerVars,
+        playerVars: {
+          ...playerVars,
+          listType: playlistId ? 'playlist' : undefined,
+          list: playlistId || undefined,
+        },
         events: {
           onReady: (e: { target: YTPlayerX }) => {
             setReady(true);
@@ -305,8 +309,8 @@ function YouTubeBarPlayer({
     >
       <div ref={hostRef} className="pointer-events-none fixed left-[-240px] top-0 h-[200px] w-[200px] opacity-0" aria-hidden />
 
-      <div className="p-3 space-y-2" style={uiColor ? { color: uiColor } : undefined}>
-        <div className="flex items-center gap-3">
+      <div className="p-5 space-y-2" style={uiColor ? { color: uiColor } : undefined}>
+        <div className="flex items-center gap-3 space-y-2">
           <div
             className="h-14 w-14 shrink-0 overflow-hidden rounded-xl border bg-black/5"
             style={borderColor ? { borderColor } : undefined}
@@ -314,8 +318,19 @@ function YouTubeBarPlayer({
             <img src={thumb} alt="" className="h-full w-full object-cover" />
           </div>
 
-          <div className="min-w-0 flex-1">
-            <div className="text-sm font-black leading-tight line-clamp-2">{title}</div>
+          <div className="min-w-0 flex-1 overflow-hidden">
+            <div 
+              className="relative flex overflow-hidden"
+              style={title.length > 15 ? {
+                WebkitMaskImage: 'linear-gradient(to right, transparent 0%, black 10%, black 90%, transparent 100%)',
+                maskImage: 'linear-gradient(to right, transparent 0%, black 10%, black 90%, transparent 100%)'
+              } : {}}
+            >
+              <div className={cn( "flex whitespace-nowrap gap-12", title.length > 15 ? "animate-marquee" : "" )}>
+                <div className="text-sm font-black leading-tight">{title}</div>
+                {title.length > 15 && ( <div className="text-sm font-black leading-tight">{title}</div>)}
+              </div>
+            </div>
             <div className="text-xs opacity-80 line-clamp-1 mt-0.5">{author || 'YouTube'}</div>
           </div>
 
@@ -323,7 +338,7 @@ function YouTubeBarPlayer({
             {isPlaylist ? (
               <button
                 type="button"
-                className="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-current/25 bg-white/0 disabled:opacity-40"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-white/0 cursor-pointer transition-transform hover:scale-110 disabled:opacity-40"
                 style={uiColor ? { color: uiColor, borderColor: `${uiColor}33` } : undefined}
                 aria-label="上一首"
                 onClick={() => {
@@ -334,23 +349,23 @@ function YouTubeBarPlayer({
                   }
                 }}
               >
-                <ChevronLeft size={18} className="opacity-80" style={uiColor ? { color: uiColor } : undefined} />
+                <ChevronLeft size={20} className="opacity-80" style={uiColor ? { color: uiColor } : undefined} />
               </button>
             ) : null}
             <button
               type="button"
               onClick={toggle}
               disabled={!ready}
-              className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-current/25 bg-white/0 disabled:opacity-40"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-white/0 cursor-pointer transition-transform hover:scale-110 disabled:opacity-40"
               style={uiColor ? { color: uiColor, borderColor: `${uiColor}33` } : undefined}
               aria-label={playing ? '暫停' : '播放'}
             >
-              {playing ? <Pause size={18} style={uiColor ? { color: uiColor } : undefined} /> : <Play size={18} className="translate-x-px" style={uiColor ? { color: uiColor } : undefined} />}
+              {playing ? <Pause size={20} style={uiColor ? { color: uiColor } : undefined} /> : <Play size={18} className="translate-x-px" style={uiColor ? { color: uiColor } : undefined} />}
             </button>
             {isPlaylist ? (
               <button
                 type="button"
-                className="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-current/25 bg-white/0 disabled:opacity-40"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-white/0 cursor-pointer transition-transform hover:scale-110 disabled:opacity-40"
                 style={uiColor ? { color: uiColor, borderColor: `${uiColor}33` } : undefined}
                 aria-label="下一首"
                 onClick={() => {
@@ -361,7 +376,7 @@ function YouTubeBarPlayer({
                   }
                 }}
               >
-                <ChevronRight size={18} className="opacity-80" style={uiColor ? { color: uiColor } : undefined} />
+                <ChevronRight size={20} className="opacity-80" style={uiColor ? { color: uiColor } : undefined} />
               </button>
             ) : null}
           </div>

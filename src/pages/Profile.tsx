@@ -656,7 +656,7 @@ function GalleryBlock({
         <div className="p-4 flex items-center gap-3">
           <button
             type="button"
-            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border transition-colors"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl cursor-pointer transition-transform hover:scale-110"
             style={{ borderColor, color: textColor, backgroundColor: 'transparent' }}
             aria-label="上一張"
             onClick={(e) => {
@@ -674,7 +674,7 @@ function GalleryBlock({
 
           <button
             type="button"
-            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border transition-colors"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl cursor-pointer transition-transform hover:scale-110"
             style={{ borderColor, color: textColor, backgroundColor: 'transparent' }}
             aria-label="下一張"
             onClick={(e) => {
@@ -706,7 +706,7 @@ function GalleryBlock({
             {img.caption ? (
               <div className="pointer-events-none absolute inset-x-0 bottom-0 overflow-hidden opacity-0 transition-opacity duration-200 group-hover:opacity-100">
                 <div
-                  className="gallery-grid-caption w-full border-t px-3 py-2 text-xs font-bold line-clamp-3"
+                  className="gallery-grid-caption w-full px-3 py-2 text-xs font-bold line-clamp-3"
                   style={{
                     backgroundColor: componentBgColor,
                     color: textColor,
@@ -913,7 +913,7 @@ function AnimatedDropdown({
                         backgroundColor: itemBackgroundColor,
                         color: textColor,
                       }}
-                      className="block px-4 py-3 rounded-xl text-sm hover:opacity-90"
+                      className="block px-4 py-3 rounded-xl text-sm hover:opacity-50"
                     >
                       {item.label || `項目 ${index + 1}`}
                     </a>

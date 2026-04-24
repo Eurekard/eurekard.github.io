@@ -502,7 +502,7 @@ function EditorGalleryPreview({
         <div className="p-4 flex items-center gap-3" onPointerDown={(e) => e.stopPropagation()}>
           <button
             type="button"
-            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border transition-colors"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl cursor-pointer transition-transform hover:scale-110"
             style={{ borderColor, color: textColor, backgroundColor: 'transparent' }}
             aria-label="上一張"
             onClick={(e) => {
@@ -520,7 +520,7 @@ function EditorGalleryPreview({
 
           <button
             type="button"
-            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border transition-colors"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl cursor-pointer transition-transform hover:scale-110"
             style={{ borderColor, color: textColor, backgroundColor: 'transparent' }}
             aria-label="下一張"
             onClick={(e) => {
@@ -1600,15 +1600,13 @@ function InspectorControls({ el, onUpdate }: { el: CardElement, onUpdate: (u: an
         <div className="space-y-2">
           {items.map((item: { text: string; icon?: string }, index: number) => (
             <div key={`tag-item-${index}`} className="flex items-center gap-2">
-              <input
-                value={item.icon || ''}
-                onChange={(e) => {
+              <EmojiPickerControl 
+                value={item.icon || '✨'} 
+                onChange={(emoji) => {
                   const next = [...items];
-                  next[index] = { ...next[index], icon: e.target.value };
+                  next[index] = { ...next[index], icon: emoji };
                   updateItems(next);
-                }}
-                className="w-14 shrink-0 p-3 bg-cream rounded-xl text-xs outline-none text-center"
-                placeholder="✨"
+                }} 
               />
               <input
                 value={item.text}
@@ -1617,15 +1615,15 @@ function InspectorControls({ el, onUpdate }: { el: CardElement, onUpdate: (u: an
                   next[index] = { ...next[index], text: e.target.value };
                   updateItems(next);
                 }}
-                className="min-w-0 flex-1 p-3 bg-cream rounded-xl text-xs outline-none"
+                className="min-w-0 flex-1 p-4 bg-cream rounded-xl text-xs outline-none"
                 placeholder="標籤文字"
               />
               <button
                 onClick={() => updateItems(items.filter((_: any, i: number) => i !== index))}
-                className="w-9 h-9 shrink-0 inline-flex items-center justify-center bg-red-50 text-red-500 rounded-xl text-xs font-bold"
+                className="w-10 h-10 shrink-0 inline-flex items-center justify-center bg-red-50 text-red-500 rounded-xl text-xs font-bold"
                 title="刪除標籤"
               >
-                <Trash2 size={15} />
+                <Trash2 size={17} />
               </button>
             </div>
           ))}
@@ -1786,10 +1784,9 @@ function EmojiPickerControl({ value, onChange }: { value: string; onChange: (emo
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-full p-4 bg-cream rounded-xl text-sm outline-none focus:ring-2 ring-cat-blue/20 flex items-center justify-between"
+        className="w-full p-3 bg-cream rounded-xl text-sm outline-none focus:ring-2 ring-cat-blue/20 flex items-center justify-between cursor-pointer"
       >
         <span className="text-lg">{value}</span>
-        <span className="text-xs font-bold text-chocolate/40">選擇表情符號</span>
       </button>
       {open && (
         <div className="absolute z-50 mt-2">

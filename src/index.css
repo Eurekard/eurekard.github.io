@@ -117,3 +117,16 @@ details.eurek-details[open] .eurek-details-body {
 .group:hover .gallery-grid-caption {
   transform: translateY(0);
 }
+
+@keyframes marquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(calc(-50% - 1.5rem)); }
+}
+
+.animate-marquee {
+  animation: marquee 25s linear infinite;
+}
+
+.animate-marquee:hover {
+  animation-play-state: paused;
+}
