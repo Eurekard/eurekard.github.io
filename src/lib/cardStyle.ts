@@ -4,7 +4,7 @@ import type { CSSProperties } from 'react';
 export const DEFAULT_PALETTE = ['#3D2B1F', '#89CFF0', '#F5F5DC', '#FFFFFF'];
 
 export const DEFAULT_GLOBAL_STYLES: GlobalDesignStyles = {
-  backgroundColor: '#F5F5DC',
+  backgroundColor: 'var(--global-background-color, #F5F5DC)', // 默認為米色
   backgroundRepeat: 'no-repeat',
   backgroundSize: 'cover',
   fontFamily: 'system',
@@ -35,7 +35,10 @@ export function toElementStyle(style?: ElementVisualStyle): CSSProperties {
 
   if (style.backgroundColor) {
     next.backgroundColor = withAlpha(style.backgroundColor, style.backgroundOpacity ?? 1);
+  } else {
+    next.backgroundColor = 'var(--global-background-color, #F5F5DC)'; // 默認背景色
   }
+
   if (style.borderColor) {
     next.borderColor = style.borderColor;
   }

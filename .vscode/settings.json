@@ -1,0 +1,8 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^npm install tailwindcss postcss autoprefixer$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}

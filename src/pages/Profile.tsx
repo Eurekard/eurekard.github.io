@@ -306,7 +306,19 @@ export default function Profile() {
   );
 }
 
-function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, sent, isReplyEnabled, publicReplies, onTrackClick, globalStyles, onHashNavigate }: any) {
+function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, sent, isReplyEnabled, publicReplies, onTrackClick, globalStyles, onHashNavigate }: {
+  el: any;
+  cardId: string;
+  onSendAnon: () => void;
+  anonMessage: string;
+  setAnonMessage: (message: string) => void;
+  sent: boolean;
+  isReplyEnabled: boolean;
+  publicReplies: any;
+  onTrackClick: (id: string) => void;
+  globalStyles: any;
+  onHashNavigate: (hash: string) => void;
+}) {
   const { type, content } = el;
   const visualStyle = toElementStyle(el.style);
   const baseComponentStyle = {

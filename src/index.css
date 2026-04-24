@@ -36,7 +36,7 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background-color: var(--color-cat-blue);
+  background-color: var(--global-scrollbar-color, var(--color-cat-blue)); /* 默認為藍色 */
   border-radius: 100px;
   border: 2px solid transparent;
   background-clip: content-box;
@@ -52,7 +52,7 @@
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--color-cat-blue) transparent;
+  scrollbar-color: var(--global-scrollbar-color, var(--color-cat-blue)) transparent;
 }
 
 .glass-card {
