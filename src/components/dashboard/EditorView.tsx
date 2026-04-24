@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { CardData, CardElement, GlobalDesignStyles } from '../../types';
-import { Plus, GripVertical, Trash2, Layout, Type, Image as ImageIcon, Link as LinkIcon, Play, Hash, Music, Timer, Heart, Settings2, Palette, Save, Eye, UploadCloud, Loader2, ChevronDown, List, Tag, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, GripVertical, Trash2, Layout, Type, Image as ImageIcon, Link as LinkIcon, Play, Hash, Music, Timer, Heart, Settings, Settings2, Palette, Save, Eye, UploadCloud, Loader2, ChevronDown, List, Tag, ChevronLeft, ChevronRight } from 'lucide-react';
 import { motion, Reorder, AnimatePresence, useDragControls } from 'motion/react';
 import { db } from '../../lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
@@ -42,6 +42,7 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
   const [elements, setElements] = useState<CardElement[]>(cardData?.draft_content?.elements || []);
   const [globalStyles, setGlobalStyles] = useState<GlobalDesignStyles>(resolveGlobalStyles(cardData?.draft_content?.styles));
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [inspectorOpenId, setInspectorOpenId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [isAddDrawerOpen, setIsAddDrawerOpen] = useState(false);
   const [isTouchDevice, setIsTouchDevice] = useState(false);
@@ -78,6 +79,7 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
     const newElements = [...elements, newEl];
     setElements(newElements);
     setSelectedId(newEl.id);
+    setInspectorOpenId(newEl.id); // Auto-open inspector for newly added elements
   };
 
   const handleUpdate = (id: string, updates: Partial<CardElement>) => {
@@ -149,12 +151,18 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
   };
 
   useEffect(() => {
-    // If an element is selected, close the Add drawer
-    if (selectedId) setIsAddDrawerOpen(false);
+    if (selectedId) {
+      setIsAddDrawerOpen(false);
+      // If the inspector is already open, follow the new selection automatically
+      setInspectorOpenId(prev => prev !== null ? selectedId : prev);
+    } else {
+      // Deselected → close the inspector too
+      setInspectorOpenId(null);
+    }
   }, [selectedId]);
 
-  const activeElement = elements.find(el => el.id === selectedId);
-  const isProfileSelected = selectedId === 'profile';
+  const activeElement = elements.find(el => el.id === inspectorOpenId);
+  const isProfileSelected = inspectorOpenId === 'profile';
   const pageStyle = toGlobalPageStyle(globalStyles);
   const previewCardId = ownerUid || cardData.uid;
 
@@ -171,12 +179,12 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
       <div
         style={pageStyle}
         className="w-full min-h-full py-20 px-6 relative z-10"
-        onClick={() => setSelectedId(null)} // Click outside to deselect
+        onClick={() => { setSelectedId(null); setInspectorOpenId(null); }}
       >
         <div className="w-full max-w-[480px] mx-auto">
           <div
             className="text-center mb-12 cursor-pointer transition-transform hover:scale-105 active:scale-95"
-            onClick={(e) => { e.stopPropagation(); setSelectedId('profile'); }}
+            onClick={(e) => { e.stopPropagation(); setSelectedId('profile'); setInspectorOpenId('profile'); }}
           >
             <motion.div className={cn("w-32 h-32 rounded-[4rem] mx-auto mb-6 p-1.5 relative overflow-hidden transition-all", isProfileSelected ? "ring-4 ring-cat-blue" : "")}>
               <img
@@ -219,6 +227,7 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
                   <div className="absolute -right-4 -top-4 z-20">
                     <ElementActionsMenu
                       el={el}
+                      onEdit={() => setInspectorOpenId(el.id)}
                       onDuplicate={() => {
                         const newElement = {
                           ...el,
@@ -324,9 +333,9 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
             <div className="flex items-center justify-between mb-8 pb-4 border-b border-chocolate/5">
               <div className="flex items-center gap-2 text-chocolate">
                 <Settings2 size={18} />
-                <h3 className="text-sm font-bold uppercase tracking-widest">屬性編輯</h3>
+                <h3 className="text-sm font-bold uppercase tracking-widest">屬性設定</h3>
               </div>
-              <button onClick={() => setSelectedId(null)} className="p-2 bg-cream hover:bg-chocolate hover:text-white transition-colors rounded-full"><Plus className="rotate-45" size={18} /></button>
+              <button onClick={() => { setSelectedId(null); setInspectorOpenId(null); }} className="p-2 bg-cream hover:bg-chocolate hover:text-white transition-colors rounded-full"><Plus className="rotate-45" size={18} /></button>
             </div>
 
             <div className="space-y-6">
@@ -1678,14 +1687,9 @@ function SortableElementItem({
     dragControls.start(nativeEvent);
   };
 
-  const onDragPointerDown = (event: React.PointerEvent<HTMLElement>) => {
-    if (!isTouchDevice) return;
-    const nativeEvent = event.nativeEvent;
-    // Only start drag on long press - do NOT open inspector (setSelectedId) here.
-    // onDragStart will set selectedId when the user actually starts dragging.
-    dragTimerRef.current = window.setTimeout(() => {
-      dragControls.start(nativeEvent);
-    }, 300);
+  const onDragPointerDown = (_event: React.PointerEvent<HTMLElement>) => {
+    // On mobile, drag only starts from the grip handle (touch-action: none).
+    // This prevents the item body from interfering with page scrolling.
   };
 
   const handleDrag = (event: MouseEvent | TouchEvent | PointerEvent) => {
@@ -1705,7 +1709,7 @@ function SortableElementItem({
       dragControls={dragControls}
       dragListener={false}
       whileDrag={{ scale: 1, zIndex: 40 }}
-      onDragStart={() => { /* drag started - inspector stays as-is */ }}
+      onDragStart={() => { /* inspector stays unchanged during drag */ }}
       onDrag={handleDrag}
       onClick={(e) => {
         e.stopPropagation();
@@ -1719,19 +1723,38 @@ function SortableElementItem({
         'relative cursor-pointer group rounded-[2.2rem]',
         selectedId === el.id ? 'ring-4 ring-cat-blue/50' : ''
       )}
-      style={{ touchAction: isTouchDevice ? 'pan-y' : 'none', userSelect: 'none', WebkitUserSelect: 'none' } as React.CSSProperties}
+      style={{ touchAction: 'pan-y', userSelect: 'none', WebkitUserSelect: 'none' } as React.CSSProperties}
     >
+      {/* Desktop grip — shown on hover to the left of the card */}
       <button
         type="button"
         onPointerDown={onHandlePointerDown}
         onPointerUp={clearDragTimer}
         onPointerCancel={clearDragTimer}
         onPointerLeave={clearDragTimer}
-        className="absolute -left-12 top-1/2 -translate-y-1/2 p-2 text-chocolate/20 hover:text-chocolate/50 transition-colors cursor-move opacity-0 group-hover:opacity-100 xl:opacity-100 flex flex-col items-center gap-2"
-        title={isTouchDevice ? '長按拖曳排序' : '拖曳排序'}
+        className="absolute -left-12 top-1/2 -translate-y-1/2 p-2 text-chocolate/20 hover:text-chocolate/50 transition-colors cursor-move opacity-0 group-hover:opacity-100 xl:opacity-100 xl:flex hidden flex-col items-center gap-2"
+        style={{ touchAction: 'none' }}
+        title="拖曳排序"
       >
         <GripVertical size={20} />
       </button>
+
+      {/* Mobile grip — always visible, inside the card on the right */}
+      {isTouchDevice && (
+        <button
+          type="button"
+          onPointerDown={onHandlePointerDown}
+          onPointerUp={clearDragTimer}
+          onPointerCancel={clearDragTimer}
+          onPointerLeave={clearDragTimer}
+          className="absolute right-2 top-1/2 -translate-y-1/2 p-3 text-chocolate/30 cursor-move z-10"
+          style={{ touchAction: 'none' }}
+          title="長按拖曳排序"
+        >
+          <GripVertical size={18} />
+        </button>
+      )}
+
       {children}
     </Reorder.Item>
   );
@@ -1973,7 +1996,7 @@ function GalleryInspector({ content, handleChange }: { content: any; handleChang
 }
 
 
-function ElementActionsMenu({ el, onDuplicate, onDelete }: { el: CardElement; onDuplicate: () => void; onDelete: () => void }) {
+function ElementActionsMenu({ el, onEdit, onDuplicate, onDelete }: { el: CardElement; onEdit: () => void; onDuplicate: () => void; onDelete: () => void }) {
   const [open, setOpen] = useState(false);
   const handleCopyId = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -2005,8 +2028,15 @@ function ElementActionsMenu({ el, onDuplicate, onDelete }: { el: CardElement; on
               initial={{ opacity: 0, scale: 0.95, y: -10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: -10 }}
-              className="absolute right-0 top-12 w-40 bg-white rounded-2xl border-3 border-chocolate/10 shadow-lg overflow-hidden z-50 py-2"
+              className="absolute right-0 top-12 w-44 bg-white rounded-2xl border-3 border-chocolate/10 shadow-lg overflow-hidden z-50 py-2"
             >
+              <button
+                onClick={(e) => { e.stopPropagation(); onEdit(); setOpen(false); }}
+                className="w-full px-4 py-3 text-sm font-bold text-chocolate hover:bg-cream flex items-center gap-3 transition-colors text-left"
+              >
+                <Settings size={16} /> 屬性設定
+              </button>
+              <div className="h-px bg-chocolate/5 my-1" />
               <button
                 onClick={(e) => { e.stopPropagation(); onDuplicate(); setOpen(false); }}
                 className="w-full px-4 py-3 text-sm font-bold text-chocolate hover:bg-cream flex items-center gap-3 transition-colors text-left"
