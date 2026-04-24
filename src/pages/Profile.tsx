@@ -1,16 +1,23 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { db } from '../lib/firebase';
-import { doc, getDoc, collection, addDoc, query, onSnapshot, where, setDoc, increment } from 'firebase/firestore';
+import { doc, getDoc, collection, addDoc, query, onSnapshot, where } from 'firebase/firestore';
 import { CardData, AnonResponse } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
-import { Heart, Send, ExternalLink, MessageSquare, Music, Eye } from 'lucide-react';
+import { Heart, Send, ExternalLink, MessageSquare, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { buildEmbedHtmlFromUrl } from '../lib/embed';
+import MusicPlayer from '../components/MusicPlayer';
+import { MoodCounter, VisitorCounter } from '../components/ElementCounters';
 import { isHashLink, normalizeLinkTarget, resolveGlobalStyles, toElementStyle, toGlobalPageStyle } from '../lib/cardStyle';
 import { detectDevice, detectSource, getAnalyticsDay } from '../lib/analytics';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
+
+marked.use({
+  gfm: true,
+  breaks: true,
+});
 
 export default function Profile() {
   const { username } = useParams();
@@ -310,7 +317,7 @@ function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, se
 
   if (type === 'text') {
     const alignClass = content.align === 'left' ? 'text-left' : content.align === 'right' ? 'text-right' : 'text-center';
-    const html = DOMPurify.sanitize(marked.parse(String(content.text || ''), { breaks: true }) as string);
+    const html = DOMPurify.sanitize(marked.parse(String(content.text || '')) as string);
     return (
       <div
         style={{ color: globalStyles?.textColor }}
@@ -320,7 +327,10 @@ function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, se
           content.size === '6xl' ? 'text-4xl md:text-5xl font-black mb-4' : 'text-lg opacity-80'
         )}
       >
-        <div className="prose prose-sm max-w-none prose-p:my-2 prose-strong:font-black prose-a:underline" dangerouslySetInnerHTML={{ __html: html }} />
+        <div
+          className="markdown-body max-w-none prose-strong:font-black"
+          dangerouslySetInnerHTML={{ __html: html }}
+        />
       </div>
     );
   }
@@ -442,7 +452,9 @@ function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, se
         baseComponentStyle={baseComponentStyle}
         visualStyle={visualStyle}
         borderColor={globalStyles?.componentBorderColor}
+        textColor={globalStyles?.textColor}
         onTrackClick={() => void onTrackClick(el.id)}
+        onHashNavigate={onHashNavigate}
       />
     );
   }
@@ -498,28 +510,20 @@ function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, se
   }
 
   if (type === 'music') {
-    const embedHtml = content.html || buildEmbedHtmlFromUrl(content.url || '');
-    if (!embedHtml) {
+    const rawUrl = String(content.url || '').trim();
+    if (!rawUrl) {
       return (
         <div style={{ ...baseComponentStyle, ...visualStyle }} className="w-full rounded-[2rem] border p-6 text-center">
-          <Music className="mx-auto mb-2 opacity-40" />
           <div className="text-sm opacity-70">尚未設定音樂連結</div>
         </div>
       );
     }
     return (
-      <div style={{ ...baseComponentStyle, ...visualStyle }} className="w-full rounded-[2rem] border overflow-hidden">
-        <div className="px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Music size={18} className="opacity-70" />
-            <div className="text-sm font-bold opacity-80">音樂播放器</div>
-          </div>
-          <div className="text-xs opacity-60 truncate max-w-[140px]">{String(content.url || '').replace(/^https?:\/\//, '')}</div>
-        </div>
-        <div className="px-4 pb-4">
-          <div className="rounded-xl overflow-hidden border embed-container" style={{ borderColor: globalStyles?.componentBorderColor }} dangerouslySetInnerHTML={{ __html: embedHtml }} />
-        </div>
-      </div>
+      <MusicPlayer
+        url={rawUrl}
+        borderColor={globalStyles?.componentBorderColor}
+        style={{ ...baseComponentStyle, ...visualStyle }}
+      />
     );
   }
 
@@ -528,11 +532,11 @@ function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, se
   }
 
   if (type === 'visitor') {
-    return <VisitorCounter cardId={cardId} elementId={el.id} content={content} style={{ ...baseComponentStyle, ...visualStyle }} />;
+    return <VisitorCounter mode="live" cardId={cardId} elementId={el.id} content={content} style={{ ...baseComponentStyle, ...visualStyle }} />;
   }
 
   if (type === 'mood') {
-    return <MoodCounter cardId={cardId} elementId={el.id} content={content} style={{ ...baseComponentStyle, ...visualStyle }} />;
+    return <MoodCounter mode="live" cardId={cardId} elementId={el.id} content={content} style={{ ...baseComponentStyle, ...visualStyle }} />;
   }
 
   return null;
@@ -543,45 +547,174 @@ function GalleryBlock({
   baseComponentStyle,
   visualStyle,
   borderColor,
+  textColor,
   onTrackClick,
+  onHashNavigate,
 }: {
   content: any;
   baseComponentStyle: React.CSSProperties;
   visualStyle: React.CSSProperties;
   borderColor?: string;
+  textColor?: string;
   onTrackClick: () => void;
+  onHashNavigate: (hash: string) => void;
 }) {
   const images = Array.isArray(content.images) ? content.images : [];
   const [index, setIndex] = useState(0);
+  const [direction, setDirection] = useState(0);
   if (images.length === 0) {
     return <div style={{ ...baseComponentStyle, ...visualStyle }} className="w-full rounded-[2rem] border p-6 text-sm opacity-60">圖庫尚未新增圖片</div>;
   }
 
   if (content.layout === 'slideshow') {
     const current = images[index % images.length];
+    const rawLink = String(current.link || '').trim();
+    const url = rawLink ? normalizeLinkTarget(rawLink) : '';
+    const hashLink = isHashLink(url);
+
+    const media = (
+      <div className="relative aspect-square w-full overflow-hidden bg-black/5">
+        <AnimatePresence initial={false} custom={direction} mode="wait">
+          <motion.img
+            key={current.url}
+            src={current.url}
+            alt={current.caption || 'gallery'}
+            custom={direction}
+            initial={{ x: direction >= 0 ? 40 : -40, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: direction >= 0 ? -40 : 40, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 420, damping: 34, mass: 0.7 }}
+            className={cn('absolute inset-0 h-full w-full', content.fill ? 'object-cover' : 'object-contain')}
+          />
+        </AnimatePresence>
+      </div>
+    );
+
     return (
       <div style={{ ...baseComponentStyle, ...visualStyle, borderColor }} className="w-full rounded-[2rem] border overflow-hidden">
-        <a href={current.link || undefined} onClick={() => onTrackClick()} target={current.link ? '_blank' : undefined} rel={current.link ? 'noopener noreferrer' : undefined}>
-          <img src={current.url} alt={current.caption || 'gallery'} className={cn('w-full h-64', content.fill ? 'object-cover' : 'object-contain bg-black/5')} />
-        </a>
-        <div className="p-4 flex items-center justify-between">
-          <div className="text-sm font-medium truncate">{current.caption || `圖片 ${index + 1}`}</div>
-          <div className="flex gap-2">
-            <button onClick={() => setIndex((prev) => (prev - 1 + images.length) % images.length)} className="px-2 py-1 border rounded-lg text-xs">上一張</button>
-            <button onClick={() => setIndex((prev) => (prev + 1) % images.length)} className="px-2 py-1 border rounded-lg text-xs">下一張</button>
+        {url ? (
+          <motion.a
+            href={url}
+            whileHover={{ scale: 1.01 }}
+            whileTap={{ scale: 0.99 }}
+            onClick={(event) => {
+              void onTrackClick();
+              if (!hashLink) return;
+              event.preventDefault();
+              const nextHash = url.replace(/^#/, '');
+              if (url === '#') {
+                window.history.pushState(null, '', `${window.location.pathname}#`);
+              } else {
+                window.location.hash = nextHash;
+              }
+              onHashNavigate(`#${nextHash}`);
+            }}
+            target={hashLink ? undefined : '_blank'}
+            rel={hashLink ? undefined : 'noopener noreferrer'}
+            className="block"
+          >
+            {media}
+          </motion.a>
+        ) : (
+          <button type="button" className="block w-full text-left" onClick={() => onTrackClick()}>
+            {media}
+          </button>
+        )}
+
+        <div className="p-4 flex items-center gap-3">
+          <button
+            type="button"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border bg-white/70 hover:bg-white transition-colors"
+            style={{ borderColor }}
+            aria-label="上一張"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setDirection(-1);
+              setIndex((prev) => (prev - 1 + images.length) % images.length);
+            }}
+          >
+            <ChevronLeft size={18} />
+          </button>
+
+          <div className="min-w-0 flex-1 text-center text-sm font-bold truncate" style={{ color: textColor }}>
+            {current.caption || `圖片 ${index + 1}`}
           </div>
+
+          <button
+            type="button"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border bg-white/70 hover:bg-white transition-colors"
+            style={{ borderColor }}
+            aria-label="下一張"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setDirection(1);
+              setIndex((prev) => (prev + 1) % images.length);
+            }}
+          >
+            <ChevronRight size={18} />
+          </button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="grid grid-cols-2 gap-2">
-      {images.map((img: any, idx: number) => (
-        <a key={`g-grid-${idx}`} href={img.link || undefined} onClick={() => onTrackClick()} target={img.link ? '_blank' : undefined} rel={img.link ? 'noopener noreferrer' : undefined}>
-          <img src={img.url} alt={img.caption || `圖庫 ${idx + 1}`} className={cn('w-full h-36 rounded-xl border', content.fill ? 'object-cover' : 'object-contain bg-black/5')} style={{ borderColor }} />
-        </a>
-      ))}
+    <div className="grid grid-cols-2 gap-2 w-full">
+      {images.map((img: any, idx: number) => {
+        const rawLink = String(img.link || '').trim();
+        const url = rawLink ? normalizeLinkTarget(rawLink) : '';
+        const hashLink = isHashLink(url);
+        const inner = (
+          <div className="relative aspect-square w-full overflow-hidden rounded-2xl border bg-black/5 group" style={{ borderColor }}>
+            <img
+              src={img.url}
+              alt={img.caption || `圖庫 ${idx + 1}`}
+              className={cn('h-full w-full', content.fill ? 'object-cover' : 'object-contain')}
+            />
+            {img.caption ? (
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                <div className="m-2 rounded-xl bg-black/55 px-3 py-2 text-xs font-bold text-white line-clamp-3">{img.caption}</div>
+              </div>
+            ) : null}
+          </div>
+        );
+
+        if (!url) {
+          return (
+            <button key={`g-grid-${idx}`} type="button" className="block w-full" onClick={() => onTrackClick()}>
+              {inner}
+            </button>
+          );
+        }
+
+        return (
+          <motion.a
+            key={`g-grid-${idx}`}
+            href={url}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={(event) => {
+              void onTrackClick();
+              if (!hashLink) return;
+              event.preventDefault();
+              const nextHash = url.replace(/^#/, '');
+              if (url === '#') {
+                window.history.pushState(null, '', `${window.location.pathname}#`);
+              } else {
+                window.location.hash = nextHash;
+              }
+              onHashNavigate(`#${nextHash}`);
+            }}
+            target={hashLink ? undefined : '_blank'}
+            rel={hashLink ? undefined : 'noopener noreferrer'}
+            className="block"
+          >
+            {inner}
+          </motion.a>
+        );
+      })}
     </div>
   );
 }
@@ -604,64 +737,6 @@ function CountdownDisplay({ title, targetAt, style }: { title?: string; targetAt
       <div className="text-sm opacity-70">{title || '活動倒數'}</div>
       <div className="mt-2 text-xl tabular-nums">{days}天 {hours}時 {mins}分 {secs}秒</div>
     </div>
-  );
-}
-
-function VisitorCounter({ cardId, elementId, content, style }: { cardId: string; elementId: string; content: any; style?: React.CSSProperties }) {
-  const [count, setCount] = useState(0);
-
-  useEffect(() => {
-    if (!cardId || !elementId) return;
-    const ref = doc(db, 'cards', cardId, 'element_stats', elementId);
-    const key = `eurekard:visitor:${cardId}:${elementId}`;
-    if (!window.localStorage.getItem(key)) {
-      window.localStorage.setItem(key, '1');
-      void setDoc(ref, { visitorCount: increment(1), updatedAt: new Date().toISOString() }, { merge: true });
-    }
-    const unsub = onSnapshot(ref, (snap) => {
-      setCount((snap.data() as any)?.visitorCount || 0);
-    });
-    return () => unsub();
-  }, [cardId, elementId]);
-
-  return (
-    <div style={style} className="w-full rounded-[2rem] border p-5 text-center font-bold">
-      <div className="text-sm opacity-70">{content?.title || '訪客次數'}</div>
-      <div className="text-2xl mt-1">{content?.prefix || '👀'} {count}</div>
-    </div>
-  );
-}
-
-function MoodCounter({ cardId, elementId, content, style }: { cardId: string; elementId: string; content: any; style?: React.CSSProperties }) {
-  const [count, setCount] = useState(0);
-  const localKey = `eurekard:mood:${cardId}:${elementId}`;
-  const [hasVoted, setHasVoted] = useState<boolean>(() => !!window.localStorage.getItem(localKey));
-
-  useEffect(() => {
-    if (!cardId || !elementId) return;
-    const ref = doc(db, 'cards', cardId, 'element_stats', `${elementId}_mood`);
-    const unsub = onSnapshot(ref, (snap) => {
-      setCount((snap.data() as any)?.moodCount || 0);
-    });
-    return () => unsub();
-  }, [cardId, elementId]);
-
-  const handleVote = async () => {
-    if (hasVoted) return;
-    window.localStorage.setItem(localKey, '1');
-    setHasVoted(true);
-    await setDoc(doc(db, 'cards', cardId, 'element_stats', `${elementId}_mood`), { moodCount: increment(1), updatedAt: new Date().toISOString() }, { merge: true });
-  };
-
-  return (
-    <button
-      onClick={handleVote}
-      disabled={hasVoted}
-      style={style}
-      className="w-full rounded-[2rem] border p-5 text-center font-bold disabled:opacity-50"
-    >
-      {content?.emoji || '❤️'} {content?.title || '按下喜歡'} {count}
-    </button>
   );
 }
 
@@ -758,7 +833,7 @@ function AnimatedDropdown({
         className="w-full cursor-pointer list-none flex items-center justify-between gap-3"
       >
         <span style={{ color: textColor }} className="font-bold">{label}</span>
-        <span className={cn('opacity-60 transition-transform', open ? 'rotate-180' : 'rotate-0')}>⌄</span>
+        <span className={cn('opacity-60 transition-transform', open ? 'rotate-180' : 'rotate-0')}>▼</span>
       </button>
       <AnimatePresence initial={false}>
         {open && (

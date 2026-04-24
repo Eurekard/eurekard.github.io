@@ -39,6 +39,32 @@ service cloud.firestore {
         && (data.keys().size() == 3 || (data.keys().size() == 4 && data.keys().hasAll(['reply'])));
     }
 
+    function isValidIsoString(s) {
+      return s is string && s.size() <= 40;
+    }
+
+    function isVisitorStatsWrite() {
+      return incoming().keys().hasOnly(['visitorCount', 'updatedAt'])
+        && incoming().visitorCount is int
+        && incoming().visitorCount >= 0
+        && incoming().visitorCount <= 1
+        && isValidIsoString(incoming().updatedAt)
+        && (!resource.exists
+          || (incoming().visitorCount == existing().visitorCount + 1
+            && incoming().updatedAt != existing().updatedAt));
+    }
+
+    function isMoodStatsWrite() {
+      return incoming().keys().hasOnly(['moodCount', 'updatedAt'])
+        && incoming().moodCount is int
+        && incoming().moodCount >= 0
+        && incoming().moodCount <= 1
+        && isValidIsoString(incoming().updatedAt)
+        && (!resource.exists
+          || (incoming().moodCount == existing().moodCount + 1
+            && incoming().updatedAt != existing().updatedAt));
+    }
+
     // 1. User Profiles
     match /users/{userId} {
       allow get: if isSignedIn();
@@ -57,6 +83,14 @@ service cloud.firestore {
       allow list: if false;
       allow create: if isOwner(cardId) && isValidCard(incoming());
       allow update: if isOwner(cardId);
+
+      // 2.0 Public element counters (visitor / mood)
+      match /element_stats/{statId} {
+        allow read: if true;
+        allow create: if isVisitorStatsWrite() || isMoodStatsWrite();
+        allow update: if isVisitorStatsWrite() || isMoodStatsWrite();
+        allow delete: if false;
+      }
       
       // 2.1 Responses Subcollection
       match /responses/{responseId} {

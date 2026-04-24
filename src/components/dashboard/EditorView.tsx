@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { CardData, CardElement, GlobalDesignStyles } from '../../types';
-import { Plus, GripVertical, Trash2, Layout, Type, Image as ImageIcon, Link as LinkIcon, Play, Hash, Music, Timer, Heart, Settings2, Palette, Save, Eye, UploadCloud, Loader2, ChevronDown, List, Tag } from 'lucide-react';
+import { Plus, GripVertical, Trash2, Layout, Type, Image as ImageIcon, Link as LinkIcon, Play, Hash, Music, Timer, Heart, Settings2, Palette, Save, Eye, UploadCloud, Loader2, ChevronDown, List, Tag, ChevronLeft, ChevronRight } from 'lucide-react';
 import { motion, Reorder, AnimatePresence, useDragControls } from 'motion/react';
 import { db } from '../../lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
@@ -9,10 +9,17 @@ import { compressImageForWeb } from '../../lib/imageCompression';
 import { uploadImageToR2 } from '../../lib/r2Upload';
 import { useAuth } from '../../context/AuthContext';
 import { buildEmbedHtmlFromUrl } from '../../lib/embed';
-import { DEFAULT_PALETTE, resolveGlobalStyles, toElementStyle, toGlobalPageStyle } from '../../lib/cardStyle';
+import MusicPlayer from '../../components/MusicPlayer';
+import { MoodCounter, VisitorCounter } from '../../components/ElementCounters';
+import { DEFAULT_PALETTE, normalizeLinkTarget, resolveGlobalStyles, toElementStyle, toGlobalPageStyle } from '../../lib/cardStyle';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 import EmojiPicker from 'emoji-picker-react';
+
+marked.use({
+  gfm: true,
+  breaks: true,
+});
 
 const ELEMENT_TYPES = [
   { type: 'text', label: '文字', icon: Type },
@@ -149,6 +156,7 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
   const activeElement = elements.find(el => el.id === selectedId);
   const isProfileSelected = selectedId === 'profile';
   const pageStyle = toGlobalPageStyle(globalStyles);
+  const previewCardId = ownerUid || cardData.uid;
 
   return (
     <div className="relative min-h-[calc(100vh-73px)] w-full overflow-x-hidden bg-cream flex justify-center">
@@ -218,9 +226,9 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
                   </div>
                 )}
 
-                {/* Disable interactions inside preview so we don't accidentally navigate or type while dragging */}
-                <div className="pointer-events-none">
-                  <ElementPreview el={el} globalStyles={globalStyles} />
+                {/* 多數元件在編輯器預覽停用互動，避免拖曳時誤觸；少數元件需要可操作/可同步資料 */}
+                <div className={['music', 'mood', 'visitor', 'gallery'].includes(el.type) ? '' : 'pointer-events-none'}>
+                  <ElementPreview el={el} globalStyles={globalStyles} cardId={previewCardId} editorVisitorMode="display" />
                 </div>
               </SortableElementItem>
             ))}
@@ -390,15 +398,147 @@ function getInitialContent(type: string) {
     };
     case 'anon_box': return { title: '跟我說些悄悄話吧', placeholder: '在此輸入...' };
     case 'embed': return { url: '', html: '' };
-    case 'music': return { url: '', html: '' };
+    case 'music': return { url: '' };
     case 'countdown': return { title: '活動倒數', targetAt: new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString() };
     case 'visitor': return { title: '訪客次數', prefix: '👀' };
-    case 'mood': return { title: '按下喜歡', emoji: '❤️' };
+    case 'mood': return { title: '個人都說讚', emoji: '❤️' };
     default: return {};
   }
 }
 
-function ElementPreview({ el, globalStyles }: { el: CardElement; globalStyles: GlobalDesignStyles }) {
+function EditorGalleryPreview({
+  content,
+  baseComponentStyle,
+  visualStyle,
+  borderColor,
+  textColor,
+}: {
+  content: any;
+  baseComponentStyle: React.CSSProperties;
+  visualStyle: React.CSSProperties;
+  borderColor?: string;
+  textColor?: string;
+}) {
+  const images = Array.isArray(content.images) ? content.images : [];
+  const [index, setIndex] = useState(0);
+  const [direction, setDirection] = useState(0);
+
+  if (images.length === 0) {
+    return <div style={baseComponentStyle} className="w-full p-6 rounded-[2rem] border text-sm opacity-60">圖庫尚未新增圖片</div>;
+  }
+
+  if (content.layout === 'slideshow') {
+    const current = images[index % images.length];
+    const rawLink = String(current.link || '').trim();
+    const url = rawLink ? normalizeLinkTarget(rawLink) : '';
+
+    const media = (
+      <div className="relative aspect-square w-full overflow-hidden bg-black/5">
+        <AnimatePresence initial={false} custom={direction} mode="wait">
+          <motion.img
+            key={current.url}
+            src={current.url}
+            alt={current.caption || 'gallery'}
+            custom={direction}
+            initial={{ x: direction >= 0 ? 40 : -40, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: direction >= 0 ? -40 : 40, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 420, damping: 34, mass: 0.7 }}
+            className={cn('absolute inset-0 h-full w-full', content.fill ? 'object-cover' : 'object-contain')}
+          />
+        </AnimatePresence>
+      </div>
+    );
+
+    return (
+      <div style={{ ...baseComponentStyle, ...visualStyle, borderColor }} className="w-full rounded-[2rem] border overflow-hidden">
+        {url ? (
+          <a href={url} className="block" onPointerDown={(e) => e.stopPropagation()}>
+            {media}
+          </a>
+        ) : (
+          <div className="block" onPointerDown={(e) => e.stopPropagation()}>
+            {media}
+          </div>
+        )}
+
+        <div className="p-4 flex items-center gap-3" onPointerDown={(e) => e.stopPropagation()}>
+          <button
+            type="button"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border bg-white/70 hover:bg-white transition-colors"
+            style={{ borderColor }}
+            aria-label="上一張"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setDirection(-1);
+              setIndex((prev) => (prev - 1 + images.length) % images.length);
+            }}
+          >
+            <ChevronLeft size={18} />
+          </button>
+
+          <div className="min-w-0 flex-1 text-center text-sm font-bold truncate" style={{ color: textColor }}>
+            {current.caption || `圖片 ${index + 1}`}
+          </div>
+
+          <button
+            type="button"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border bg-white/70 hover:bg-white transition-colors"
+            style={{ borderColor }}
+            aria-label="下一張"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setDirection(1);
+              setIndex((prev) => (prev + 1) % images.length);
+            }}
+          >
+            <ChevronRight size={18} />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-2 gap-2 w-full" onPointerDown={(e) => e.stopPropagation()}>
+      {images.map((img: any, idx: number) => {
+        const rawLink = String(img.link || '').trim();
+        const url = rawLink ? normalizeLinkTarget(rawLink) : '';
+        const inner = (
+          <div className="relative aspect-square w-full overflow-hidden rounded-2xl border bg-black/5 group" style={{ borderColor }}>
+            <img src={img.url} alt={img.caption || `圖庫 ${idx + 1}`} className={cn('h-full w-full', content.fill ? 'object-cover' : 'object-contain')} />
+            {img.caption ? (
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                <div className="m-2 rounded-xl bg-black/55 px-3 py-2 text-xs font-bold text-white line-clamp-3">{img.caption}</div>
+              </div>
+            ) : null}
+          </div>
+        );
+
+        if (!url) return <div key={`g-${idx}`}>{inner}</div>;
+        return (
+          <a key={`g-${idx}`} href={url} className="block">
+            {inner}
+          </a>
+        );
+      })}
+    </div>
+  );
+}
+
+function ElementPreview({
+  el,
+  globalStyles,
+  cardId,
+  editorVisitorMode = 'live',
+}: {
+  el: CardElement;
+  globalStyles: GlobalDesignStyles;
+  cardId: string;
+  editorVisitorMode?: 'live' | 'display';
+}) {
   const { type, content } = el;
   const visualStyle = toElementStyle(el.style);
   const baseComponentStyle = {
@@ -409,7 +549,7 @@ function ElementPreview({ el, globalStyles }: { el: CardElement; globalStyles: G
 
   if (type === 'text') {
     const alignClass = content.align === 'left' ? 'text-left' : content.align === 'right' ? 'text-right' : 'text-center';
-    const html = DOMPurify.sanitize(marked.parse(String(content.text || ''), { breaks: true }) as string);
+    const html = DOMPurify.sanitize(marked.parse(String(content.text || '')) as string);
     return (
       <div
         style={{ color: globalStyles.textColor }}
@@ -419,7 +559,7 @@ function ElementPreview({ el, globalStyles }: { el: CardElement; globalStyles: G
           content.size === '6xl' ? 'text-4xl md:text-5xl font-black mb-4' : 'text-lg opacity-80'
         )}
       >
-        <div className="prose prose-sm max-w-none prose-p:my-2 prose-strong:font-black prose-a:underline" dangerouslySetInnerHTML={{ __html: html }} />
+        <div className="markdown-body max-w-none prose-strong:font-black" dangerouslySetInnerHTML={{ __html: html }} />
       </div>
     );
   }
@@ -481,24 +621,14 @@ function ElementPreview({ el, globalStyles }: { el: CardElement; globalStyles: G
   }
 
   if (type === 'gallery') {
-    const images = Array.isArray(content.images) ? content.images : [];
-    if (images.length === 0) {
-      return <div style={baseComponentStyle} className="w-full p-6 rounded-[2rem] border text-sm opacity-60">圖庫尚未新增圖片</div>;
-    }
-    if (content.layout === 'slideshow') {
-      return (
-        <div style={{ ...baseComponentStyle, ...visualStyle }} className="w-full rounded-[2rem] border overflow-hidden">
-          <img src={images[0].url} alt={images[0].caption || 'gallery'} className={cn('w-full h-56', content.fill ? 'object-cover' : 'object-contain bg-black/5')} />
-          <div className="p-3 text-sm font-medium">{images[0].caption || '圖庫圖片'}</div>
-        </div>
-      );
-    }
     return (
-      <div className="grid grid-cols-2 gap-2">
-        {images.slice(0, 4).map((img: any, idx: number) => (
-          <img key={`g-${idx}`} src={img.url} alt={img.caption || `圖庫 ${idx + 1}`} className={cn('w-full h-28 rounded-xl border', content.fill ? 'object-cover' : 'object-contain bg-black/5')} style={{ borderColor: globalStyles.componentBorderColor }} />
-        ))}
-      </div>
+      <EditorGalleryPreview
+        content={content}
+        baseComponentStyle={baseComponentStyle}
+        visualStyle={visualStyle}
+        borderColor={globalStyles.componentBorderColor}
+        textColor={globalStyles.textColor}
+      />
     );
   }
 
@@ -582,29 +712,22 @@ function ElementPreview({ el, globalStyles }: { el: CardElement; globalStyles: G
   }
 
   if (type === 'music') {
-    const embedHtml = content.html || buildEmbedHtmlFromUrl(content.url || '');
-    if (!embedHtml) {
+    const rawUrl = String(content.url || '').trim();
+    if (!rawUrl) {
       return (
         <div style={baseComponentStyle} className="w-full rounded-[2rem] border p-6 text-center">
           <Music className="mx-auto mb-2 opacity-40" />
-          <div className="text-sm opacity-70">貼上 Spotify / YouTube Music 連結</div>
+          <div className="text-sm opacity-70">貼上 Spotify / YouTube Music / YouTube 連結</div>
         </div>
       );
     }
     return (
-      <div style={{ ...baseComponentStyle, ...visualStyle }} className="w-full rounded-[2rem] border overflow-hidden pointer-events-none">
-        <div className="px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Music size={18} className="opacity-70" />
-            <div className="text-sm font-bold opacity-80">音樂播放器</div>
-          </div>
-          <div className="text-xs opacity-60 truncate max-w-[120px]">{(content.url || '').replace(/^https?:\/\//, '')}</div>
-        </div>
-        <div className="px-4 pb-4">
-          <div className="rounded-xl overflow-hidden border" style={{ borderColor: globalStyles.componentBorderColor }}>
-            <StableEmbedHtml embedHtml={embedHtml} />
-          </div>
-        </div>
+      <div onPointerDown={(e) => e.stopPropagation()}>
+        <MusicPlayer
+          url={rawUrl}
+          borderColor={globalStyles.componentBorderColor}
+          style={{ ...baseComponentStyle, ...visualStyle }}
+        />
       </div>
     );
   }
@@ -614,22 +737,22 @@ function ElementPreview({ el, globalStyles }: { el: CardElement; globalStyles: G
   }
 
   if (type === 'visitor') {
-    return (
-      <div style={{ ...baseComponentStyle, ...visualStyle }} className="w-full rounded-[2rem] border p-5 text-center font-bold">
-        <div className="text-sm opacity-70">{content.title || '訪客次數'}</div>
-        <div className="text-2xl mt-1">{content.prefix || '👀'} 128</div>
-      </div>
-    );
+    const merged = {
+      ...baseComponentStyle,
+      ...visualStyle,
+      backgroundColor: visualStyle.backgroundColor || globalStyles.componentBackgroundColor,
+    };
+    return <VisitorCounter mode={editorVisitorMode} cardId={cardId} elementId={el.id} content={content} style={merged} />;
   }
 
   if (type === 'mood') {
-    return (
-      <div style={{ ...baseComponentStyle, ...visualStyle }} className="w-full rounded-[2rem] border p-5 text-center">
-        <button className="px-5 py-3 rounded-xl border font-bold" style={{ borderColor: globalStyles.componentBorderColor }}>
-          {content.emoji || '❤️'} {content.title || '按下喜歡'} 42
-        </button>
-      </div>
-    );
+    const merged = {
+      ...baseComponentStyle,
+      ...visualStyle,
+      backgroundColor: visualStyle.backgroundColor || globalStyles.componentBackgroundColor,
+      color: globalStyles.textColor,
+    };
+    return <MoodCounter mode="live" cardId={cardId} elementId={el.id} content={content} style={merged} />;
   }
 
   return <div className="p-4 bg-cream rounded-xl text-[10px] text-chocolate/40 font-bold uppercase">{type} ELEMENT</div>;
@@ -1046,9 +1169,9 @@ function InspectorControls({ el, onUpdate }: { el: CardElement, onUpdate: (u: an
           className="w-full p-4 bg-cream border-none rounded-xl focus:ring-2 ring-cat-blue/20 outline-none text-sm min-h-[100px]"
         />
         <details className="rounded-xl border border-chocolate/10 bg-white/60 p-3">
-          <summary className="cursor-pointer text-xs font-bold text-chocolate/60">支援 Markdown 語法（點擊展開）</summary>
+          <summary className="cursor-pointer text-xs font-bold text-chocolate/60">支援 Markdown 語法</summary>
           <div className="mt-3 text-xs text-chocolate/70 space-y-2">
-            <div><span className="font-black">換行</span>：直接輸入換行即可</div>
+            <div><span className="font-black">換行</span>：<code>&lt;br&gt;</code></div>
             <div><span className="font-black">粗體</span>：<code>**粗體**</code></div>
             <div><span className="font-black">斜體</span>：<code>*斜體*</code></div>
             <div><span className="font-black">連結</span>：<code>[文字](https://example.com)</code></div>
@@ -1177,18 +1300,17 @@ function InspectorControls({ el, onUpdate }: { el: CardElement, onUpdate: (u: an
           value={content.url || ''}
           onChange={(e) => {
             const url = e.target.value;
-            onUpdate({ content: { ...content, url, html: buildEmbedHtmlFromUrl(url) } });
+            onUpdate({ content: { ...content, url } });
           }}
           className="w-full p-4 bg-cream border-none rounded-xl text-sm outline-none focus:ring-2 ring-cat-blue/20"
-          placeholder="貼上 Spotify 或 YouTube Music 連結"
+          placeholder="貼上 Spotify / YouTube Music / YouTube 連結"
         />
-        <label className="block text-xs font-bold text-chocolate/40">或貼 iframe 代碼</label>
-        <textarea
-          value={content.html || ''}
-          onChange={(e) => handleChange('html', e.target.value)}
-          rows={4}
-          className="w-full p-4 bg-cream border-none rounded-xl font-mono text-xs outline-none focus:ring-2 ring-cat-blue/20"
-        />
+        <div className="p-4 bg-chocolate/5 rounded-xl border border-chocolate/10 text-xs text-chocolate/60 space-y-2">
+          <div className="font-black text-chocolate">提示</div>
+          <div>
+            這裡使用<strong>自訂播放器介面</strong>：YouTube / YouTube Music 會用網站 UI 控制播放；Spotify 會顯示封面與標題，並在有提供 preview 時播放試聽片段（完整串流受平台限制）。
+          </div>
+        </div>
       </div>
     );
   }
@@ -1198,46 +1320,75 @@ function InspectorControls({ el, onUpdate }: { el: CardElement, onUpdate: (u: an
     const updateImages = (nextImages: Array<{ url: string; caption?: string; link?: string }>) => handleChange('images', nextImages);
     return (
       <div className="space-y-4">
-        <label className="block text-xs font-bold text-chocolate/40">圖庫版型</label>
-        <select value={content.layout || 'grid'} onChange={(e) => handleChange('layout', e.target.value)} className="w-full p-4 bg-cream border-none rounded-xl text-sm outline-none">
-          <option value="grid">網格</option>
-          <option value="slideshow">幻燈片</option>
-        </select>
-        <label className="block text-xs font-bold text-chocolate/40">圖片呈現</label>
-        <select value={content.fill ? 'fill' : 'contain'} onChange={(e) => handleChange('fill', e.target.value === 'fill')} className="w-full p-4 bg-cream border-none rounded-xl text-sm outline-none">
-          <option value="fill">填滿裁切</option>
-          <option value="contain">完整顯示</option>
-        </select>
+        <details className="rounded-2xl border border-chocolate/10 bg-white/60 overflow-hidden">
+          <summary className="cursor-pointer px-4 py-3 text-xs font-black text-chocolate/70">圖庫設定</summary>
+          <div className="px-4 pb-4 space-y-3 border-t border-chocolate/10">
+            <label className="block text-xs font-bold text-chocolate/40">圖庫版型</label>
+            <select value={content.layout || 'grid'} onChange={(e) => handleChange('layout', e.target.value)} className="w-full p-4 bg-cream border-none rounded-xl text-sm outline-none">
+              <option value="grid">網格</option>
+              <option value="slideshow">幻燈片</option>
+            </select>
+            <label className="block text-xs font-bold text-chocolate/40">圖片呈現</label>
+            <select value={content.fill ? 'fill' : 'contain'} onChange={(e) => handleChange('fill', e.target.value === 'fill')} className="w-full p-4 bg-cream border-none rounded-xl text-sm outline-none">
+              <option value="fill">填滿裁切</option>
+              <option value="contain">完整顯示</option>
+            </select>
+          </div>
+        </details>
+
         <label className="block text-xs font-bold text-chocolate/40">圖片清單</label>
         <div className="space-y-2">
           {images.map((img: any, index: number) => (
-            <div key={`gallery-${index}`} className="space-y-2 rounded-xl border border-chocolate/10 p-2 bg-white/70">
-              <GalleryImageUpload
-                onUploadComplete={(url) => {
-                  const next = [...images];
-                  next[index] = { ...next[index], url };
-                  updateImages(next);
-                }}
-              />
-              <input value={img.url || ''} onChange={(e) => {
-                const next = [...images];
-                next[index] = { ...next[index], url: e.target.value };
-                updateImages(next);
-              }} className="w-full p-3 bg-cream rounded-xl text-xs outline-none" placeholder="圖片網址" />
-              <input value={img.caption || ''} onChange={(e) => {
-                const next = [...images];
-                next[index] = { ...next[index], caption: e.target.value };
-                updateImages(next);
-              }} className="w-full p-3 bg-cream rounded-xl text-xs outline-none" placeholder="圖片說明（可留白）" />
-              <input value={img.link || ''} onChange={(e) => {
-                const next = [...images];
-                next[index] = { ...next[index], link: e.target.value };
-                updateImages(next);
-              }} className="w-full p-3 bg-cream rounded-xl text-xs outline-none" placeholder="點擊連結（可留白）" />
-              <button onClick={() => updateImages(images.filter((_: any, i: number) => i !== index))} className="w-9 h-9 inline-flex items-center justify-center bg-red-50 text-red-500 rounded-xl">
-                <Trash2 size={15} />
-              </button>
-            </div>
+            <details key={`gallery-${index}`} className="rounded-2xl border border-chocolate/10 bg-white/70 overflow-hidden">
+              <summary className="cursor-pointer list-none px-3 py-2 flex items-center justify-between gap-3">
+                <div className="text-xs font-black text-chocolate/70 truncate">圖片 {index + 1}</div>
+                <div className="text-[10px] font-bold text-chocolate/35">展開</div>
+              </summary>
+
+              <div className="border-t border-chocolate/10">
+                <div className="relative aspect-square w-full bg-black/5">
+                  {img.url ? (
+                    <img src={img.url} alt={img.caption || `圖片 ${index + 1}`} className="absolute inset-0 h-full w-full object-cover" />
+                  ) : (
+                    <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-chocolate/35">尚未設定圖片</div>
+                  )}
+                </div>
+
+                <div className="p-3 space-y-2">
+                  <GalleryImageUpload
+                    onUploadComplete={(url) => {
+                      const next = [...images];
+                      next[index] = { ...next[index], url };
+                      updateImages(next);
+                    }}
+                  />
+                  <input value={img.url || ''} onChange={(e) => {
+                    const next = [...images];
+                    next[index] = { ...next[index], url: e.target.value };
+                    updateImages(next);
+                  }} className="w-full p-3 bg-cream rounded-xl text-xs outline-none" placeholder="圖片網址" />
+                  <input value={img.caption || ''} onChange={(e) => {
+                    const next = [...images];
+                    next[index] = { ...next[index], caption: e.target.value };
+                    updateImages(next);
+                  }} className="w-full p-3 bg-cream rounded-xl text-xs outline-none" placeholder="圖片說明（可留白）" />
+                  <input value={img.link || ''} onChange={(e) => {
+                    const next = [...images];
+                    next[index] = { ...next[index], link: e.target.value };
+                    updateImages(next);
+                  }} onBlur={(e) => {
+                    const raw = e.target.value.trim();
+                    if (!raw) return;
+                    const next = [...images];
+                    next[index] = { ...next[index], link: normalizeLinkTarget(raw) };
+                    updateImages(next);
+                  }} className="w-full p-3 bg-cream rounded-xl text-xs outline-none" placeholder="點擊連結（支援 #區段 / 自動補 https://）" />
+                  <button onClick={() => updateImages(images.filter((_: any, i: number) => i !== index))} className="w-full h-10 inline-flex items-center justify-center bg-red-50 text-red-500 rounded-xl text-xs font-black">
+                    刪除此圖
+                  </button>
+                </div>
+              </div>
+            </details>
           ))}
           <button onClick={() => updateImages([...images, { url: '', caption: '', link: '' }])} className="w-full p-3 rounded-xl text-xs font-bold bg-white border border-chocolate/10 hover:bg-chocolate hover:text-white transition-colors">
             新增圖片
@@ -1272,10 +1423,10 @@ function InspectorControls({ el, onUpdate }: { el: CardElement, onUpdate: (u: an
   if (type === 'mood') {
     return (
       <div className="space-y-4">
-        <label className="block text-xs font-bold text-chocolate/40">按鈕文字</label>
-        <input value={content.title || ''} onChange={(e) => handleChange('title', e.target.value)} className="w-full p-4 bg-cream border-none rounded-xl text-sm outline-none focus:ring-2 ring-cat-blue/20" />
         <label className="block text-xs font-bold text-chocolate/40">心情圖示</label>
         <EmojiPickerControl value={content.emoji || '❤️'} onChange={(emoji) => handleChange('emoji', emoji)} />
+        <label className="block text-xs font-bold text-chocolate/40">按鈕文字</label>
+        <input value={content.title || ''} onChange={(e) => handleChange('title', e.target.value)} className="w-full p-4 bg-cream border-none rounded-xl text-sm outline-none focus:ring-2 ring-cat-blue/20" />
       </div>
     );
   }
@@ -1603,6 +1754,10 @@ function EmojiPickerControl({ value, onChange }: { value: string; onChange: (emo
                 onChange(emojiData.emoji);
                 setOpen(false);
               }}
+              width={280}
+              height={350}
+              emojiStyle={"native" as any}
+              previewConfig={{ showPreview: false }}
               searchDisabled={false}
               skinTonesDisabled
               lazyLoadEmojis

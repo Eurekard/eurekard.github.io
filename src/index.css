@@ -43,3 +43,52 @@
   max-width: 100%;
   display: block;
 }
+
+/* Markdown（文字元件）：補齊列表/引用/程式碼等顯示（Tailwind preflight 會重置 list-style） */
+.markdown-body {
+  @apply text-[0.95em] font-normal leading-relaxed;
+}
+.markdown-body :where(p) {
+  @apply my-2;
+}
+.markdown-body :where(a) {
+  @apply underline underline-offset-2;
+}
+.markdown-body :where(ul) {
+  list-style-type: disc;
+  @apply my-3 pl-6;
+}
+.markdown-body :where(ol) {
+  list-style-type: decimal;
+  @apply my-3 pl-6;
+}
+.markdown-body :where(li) {
+  @apply my-1;
+}
+.markdown-body :where(blockquote) {
+  @apply my-3 border-l-4 border-chocolate/25 pl-4 italic text-chocolate/80;
+}
+.markdown-body :where(hr) {
+  @apply my-6 border-chocolate/15;
+}
+.markdown-body :where(code) {
+  @apply rounded-md bg-chocolate/5 px-1.5 py-0.5 font-mono text-[0.92em];
+}
+.markdown-body :where(pre) {
+  @apply my-3 overflow-x-auto rounded-2xl border border-chocolate/10 bg-white/60 p-4;
+}
+.markdown-body :where(pre code) {
+  @apply bg-transparent p-0;
+}
+.markdown-body :where(h1, h2, h3) {
+  @apply font-display font-black tracking-tight my-3;
+}
+.markdown-body :where(h1) {
+  @apply text-2xl;
+}
+.markdown-body :where(h2) {
+  @apply text-xl;
+}
+.markdown-body :where(h3) {
+  @apply text-lg;
+}
