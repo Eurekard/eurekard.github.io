@@ -296,12 +296,14 @@ export default function Profile() {
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-[480px] relative z-10"
+        style={{ willChange: 'transform, opacity' }}
       >
         {/* Profile Header */}
         <div className="text-center mb-12">
           <motion.div
             whileHover={{ scale: 1.05 }}
             className="w-32 h-32 rounded-[4rem] mx-auto mb-6 p-1.5 relative overflow-hidden"
+            style={{ willChange: 'transform' }}
           >
             <img
               src={data.profile?.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.uid}`}
@@ -350,6 +352,7 @@ export default function Profile() {
               exit={{ opacity: 0 }}
               transition={{ duration: 0.22, ease: 'easeInOut' }}
               className="space-y-6"
+              style={{ willChange: 'opacity' }}
             >
               {sectionElements.map((el) => (
                 <div key={el.id} id={el.id}>
@@ -476,7 +479,7 @@ function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, se
         }}
         target={hashLink ? undefined : '_blank'}
         rel={hashLink ? undefined : 'noopener noreferrer'}
-        style={buttonStyle}
+        style={{ ...buttonStyle, willChange: 'transform' }}
         className="w-full p-5 border-3 rounded-[2rem] font-bold flex items-center justify-between group"
       >
         <div className="flex items-center gap-4">
@@ -592,6 +595,7 @@ function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, se
         target={hashLink ? undefined : '_blank'}
         rel={hashLink ? undefined : 'noopener noreferrer'}
         className="block w-full"
+        style={{ willChange: 'transform' }}
       >
         {inner}
       </motion.a>
@@ -754,6 +758,7 @@ function GalleryBlock({
           transition={{ type: 'tween', duration: 0.35, ease: 'easeInOut' }}
           style={{
             width: trackWidth != null ? trackWidth : `${n * 100}%`,
+            willChange: 'transform',
           }}
         >
           {images.map((img: any, i: number) => (

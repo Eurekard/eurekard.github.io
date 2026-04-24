@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
+import React, { useState, useEffect, useRef, useLayoutEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { CardData, CardElement, GlobalDesignStyles } from '../../types';
 import { Plus, GripVertical, Trash2, Layout, Type, Image as ImageIcon, Link as LinkIcon, Play, Hash, Music, Timer, Heart, Settings, Settings2, Palette, Save, Eye, UploadCloud, Loader2, ChevronDown, List, Tag, ChevronLeft, ChevronRight } from 'lucide-react';
-import { motion, Reorder, AnimatePresence, useDragControls, MotionConfig } from 'motion/react';
-import type { Transition } from 'motion/react';
+import { motion, Reorder, AnimatePresence, useDragControls } from 'motion/react';
 import { db } from '../../lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import { cn } from '../../lib/utils';
@@ -167,11 +167,7 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
   const pageStyle = toGlobalPageStyle(globalStyles);
   const previewCardId = ownerUid || cardData.uid;
 
-  // Mobile: use lightweight tween to avoid spring physics cost on low-power devices
-  const mobileTransition: Transition = { type: 'tween', duration: 0.18, ease: 'easeOut' };
-
   return (
-    <MotionConfig transition={isTouchDevice ? mobileTransition : undefined} reducedMotion="user">
     <div className="relative min-h-[calc(100vh-73px)] w-full overflow-x-hidden bg-cream flex justify-center">
 
       {/* Decorative Blobs (Same as Profile) */}
@@ -191,7 +187,10 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
             className="text-center mb-12 cursor-pointer transition-transform hover:scale-105 active:scale-95"
             onClick={(e) => { e.stopPropagation(); setSelectedId('profile'); setInspectorOpenId('profile'); }}
           >
-            <motion.div className={cn("w-32 h-32 rounded-[4rem] mx-auto mb-6 p-1.5 relative overflow-hidden transition-all", isProfileSelected ? "ring-4 ring-cat-blue" : "")}>
+            <motion.div
+              className={cn("w-32 h-32 rounded-[4rem] mx-auto mb-6 p-1.5 relative overflow-hidden transition-all", isProfileSelected ? "ring-4 ring-cat-blue" : "")}
+              style={{ willChange: 'transform' }}
+            >
               <img
                 src={profileData.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${cardData.uid}`}
                 alt={profileData.displayName}
@@ -297,6 +296,7 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
             exit={{ x: '-100%', opacity: 0 }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
             className="fixed top-0 left-0 h-[100vh] w-80 bg-white border-r border-chocolate/5 flex flex-col p-6 overflow-y-auto z-50"
+            style={{ willChange: 'transform, opacity' }}
           >
             <div className="mb-8 flex items-center justify-between">
               <h3 className="text-sm font-bold text-chocolate/40 uppercase tracking-widest">全局網站設計</h3>
@@ -398,7 +398,6 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
         )}
       </AnimatePresence>
     </div>
-    </MotionConfig>
   );
 }
 
@@ -493,6 +492,7 @@ function EditorGalleryPreview({
           transition={{ type: 'tween', duration: 0.35, ease: 'easeInOut' }}
           style={{
             width: trackWidth != null ? trackWidth : `${n * 100}%`,
+            willChange: 'transform',
           }}
         >
           {images.map((img: any, i: number) => (
@@ -990,6 +990,7 @@ function GlobalStyleControls({ styles, onChange }: { styles: GlobalDesignStyles;
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.2, ease: 'easeOut' }}
             className="overflow-hidden"
+            style={{ willChange: 'height, opacity' }}
           >
             <div className="space-y-3 px-3 py-3">
               <CompactImageUploadControl onUploadComplete={(url) => update('backgroundImageUrl', url)} />
@@ -1039,6 +1040,7 @@ function GlobalStyleControls({ styles, onChange }: { styles: GlobalDesignStyles;
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.2, ease: 'easeOut' }}
             className="overflow-hidden"
+            style={{ willChange: 'height, opacity' }}
           >
             <div className="space-y-3 px-3 py-3">
               <select
@@ -1084,6 +1086,7 @@ function GlobalStyleControls({ styles, onChange }: { styles: GlobalDesignStyles;
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.2, ease: 'easeOut' }}
             className="overflow-hidden"
+            style={{ willChange: 'height, opacity' }}
           >
             <div className="space-y-3 px-3 py-3">
               <div className="grid grid-cols-4 gap-2">
@@ -1730,7 +1733,7 @@ function SortableElementItem({
         'relative cursor-pointer group rounded-[2.2rem]',
         selectedId === el.id ? 'ring-4 ring-cat-blue/50' : ''
       )}
-      style={{ touchAction: 'pan-y', userSelect: 'none', WebkitUserSelect: 'none' } as React.CSSProperties}
+      style={{ touchAction: 'pan-y', userSelect: 'none', WebkitUserSelect: 'none', willChange: 'transform' } as React.CSSProperties}
     >
       {/* Desktop grip — shown on hover to the left of the card */}
       <button
@@ -1739,7 +1742,7 @@ function SortableElementItem({
         onPointerUp={clearDragTimer}
         onPointerCancel={clearDragTimer}
         onPointerLeave={clearDragTimer}
-        className="absolute -left-12 top-1/2 -translate-y-1/2 p-2 text-chocolate/20 hover:text-chocolate/50 transition-colors cursor-move opacity-0 group-hover:opacity-100 xl:opacity-100 xl:flex hidden flex-col items-center gap-2"
+        className="absolute -left-12 top-1/2 -translate-y-1/2 p-2 text-chocolate/20 bg-white rounded-2xl border-3 border-chocolate/10 shadow-lg hover:text-chocolate/50 transition-colors cursor-move opacity-0 group-hover:opacity-100 xl:opacity-100 xl:flex hidden flex-col items-center gap-2 z-10"
         style={{ touchAction: 'none' }}
         title="拖曳排序"
       >
@@ -1754,7 +1757,7 @@ function SortableElementItem({
           onPointerUp={clearDragTimer}
           onPointerCancel={clearDragTimer}
           onPointerLeave={clearDragTimer}
-          className="absolute right-2 top-1/2 -translate-y-1/2 p-3 text-chocolate/30 cursor-move z-10"
+          className="absolute left-6 top-1/2 -translate-y-1/2 p-2 text-chocolate/30 bg-white rounded-2xl border-3 border-chocolate/10 shadow-lg cursor-move z-10"
           style={{ touchAction: 'none' }}
           title="長按拖曳排序"
         >
@@ -1895,7 +1898,7 @@ function GalleryInspector({ content, handleChange }: { content: any; handleChang
         </button>
         <AnimatePresence initial={false}>
           {settingsOpen && (
-            <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden">
+            <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden" style={{ willChange: 'height' }}>
               <div className="px-4 pb-4 space-y-3 border-t border-chocolate/10">
                 <label className="block text-xs font-bold text-chocolate/40">圖庫版型</label>
                 <select value={content.layout || 'grid'} onChange={(e) => handleChange('layout', e.target.value)} className="w-full p-4 bg-cream border-none rounded-xl text-sm outline-none">
@@ -2005,6 +2008,26 @@ function GalleryInspector({ content, handleChange }: { content: any; handleChang
 
 function ElementActionsMenu({ el, onEdit, onDuplicate, onDelete }: { el: CardElement; onEdit: () => void; onDuplicate: () => void; onDelete: () => void }) {
   const [open, setOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+
+  const handleOpen = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!open && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect();
+      setMenuPos({ top: rect.bottom + 8, right: window.innerWidth - rect.right });
+    }
+    setOpen((v) => !v);
+  };
+
+  // Close menu on scroll (portal menu is fixed-position, doesn't follow scroll)
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    window.addEventListener('scroll', close, { passive: true, capture: true });
+    return () => window.removeEventListener('scroll', close, { capture: true });
+  }, [open]);
+
   const handleCopyId = async (e: React.MouseEvent) => {
     e.stopPropagation();
     try {
@@ -2016,57 +2039,66 @@ function ElementActionsMenu({ el, onEdit, onDuplicate, onDelete }: { el: CardEle
     setOpen(false);
   };
 
-  // 注意：需要確保最上方 import 了 MoreHorizontal, Copy
+  const menu = open && menuPos ? createPortal(
+    <>
+      <div className="fixed inset-0 z-[9998]" onClick={(e) => { e.stopPropagation(); setOpen(false); }} />
+      <AnimatePresence>
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95, y: -8 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.95, y: -8 }}
+          style={{
+            position: 'fixed',
+            top: menuPos.top,
+            right: menuPos.right,
+            zIndex: 9999,
+            willChange: 'transform, opacity',
+          }}
+          className="w-44 bg-white rounded-2xl border-3 border-chocolate/10 shadow-lg overflow-hidden py-2"
+        >
+          <button
+            onClick={(e) => { e.stopPropagation(); onEdit(); setOpen(false); }}
+            className="w-full px-4 py-3 text-sm font-bold text-chocolate hover:bg-cream flex items-center gap-3 transition-colors text-left"
+          >
+            <Settings size={16} /> 屬性設定
+          </button>
+          <div className="h-px bg-chocolate/5 my-1" />
+          <button
+            onClick={(e) => { e.stopPropagation(); onDuplicate(); setOpen(false); }}
+            className="w-full px-4 py-3 text-sm font-bold text-chocolate hover:bg-cream flex items-center gap-3 transition-colors text-left"
+          >
+            <Plus size={16} /> 複製元件
+          </button>
+          <button
+            onClick={handleCopyId}
+            className="w-full px-4 py-3 text-sm font-bold text-chocolate hover:bg-cream flex items-center gap-3 transition-colors text-left"
+          >
+            <Hash size={16} /> 複製 ID
+          </button>
+          <div className="h-px bg-chocolate/5 my-1" />
+          <button
+            onClick={(e) => { e.stopPropagation(); onDelete(); setOpen(false); }}
+            className="w-full px-4 py-3 text-sm font-bold text-red-500 hover:bg-red-50 flex items-center gap-3 transition-colors text-left"
+          >
+            <Trash2 size={16} /> 刪除元件
+          </button>
+        </motion.div>
+      </AnimatePresence>
+    </>,
+    document.body
+  ) : null;
+
   return (
     <div className="relative">
       <button
-        onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
+        ref={btnRef}
+        onClick={handleOpen}
         className="p-3 bg-white border-3 border-chocolate/10 text-chocolate hover:bg-cat-blue hover:border-cat-blue hover:text-white rounded-full transition-all hover:scale-110 active:scale-95 shadow-sm"
         title="元件操作"
       >
-        {/* 如果報錯說找不到 MoreHorizontal，請在檔案最上方 lucide-react 的引入處加上它 */}
         <Plus size={16} className={cn("transition-transform", open && "rotate-45")} />
       </button>
-      <AnimatePresence>
-        {open && (
-          <>
-            <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setOpen(false); }} />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: -10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: -10 }}
-              className="absolute right-0 top-12 w-44 bg-white rounded-2xl border-3 border-chocolate/10 shadow-lg overflow-hidden z-50 py-2"
-            >
-              <button
-                onClick={(e) => { e.stopPropagation(); onEdit(); setOpen(false); }}
-                className="w-full px-4 py-3 text-sm font-bold text-chocolate hover:bg-cream flex items-center gap-3 transition-colors text-left"
-              >
-                <Settings size={16} /> 屬性設定
-              </button>
-              <div className="h-px bg-chocolate/5 my-1" />
-              <button
-                onClick={(e) => { e.stopPropagation(); onDuplicate(); setOpen(false); }}
-                className="w-full px-4 py-3 text-sm font-bold text-chocolate hover:bg-cream flex items-center gap-3 transition-colors text-left"
-              >
-                <Plus size={16} /> 複製元件
-              </button>
-              <button
-                onClick={handleCopyId}
-                className="w-full px-4 py-3 text-sm font-bold text-chocolate hover:bg-cream flex items-center gap-3 transition-colors text-left"
-              >
-                <Hash size={16} /> 複製 ID
-              </button>
-              <div className="h-px bg-chocolate/5 my-1" />
-              <button
-                onClick={(e) => { e.stopPropagation(); onDelete(); setOpen(false); }}
-                className="w-full px-4 py-3 text-sm font-bold text-red-500 hover:bg-red-50 flex items-center gap-3 transition-colors text-left"
-              >
-                <Trash2 size={16} /> 刪除元件
-              </button>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+      {menu}
     </div>
   );
 }

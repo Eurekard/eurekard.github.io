@@ -146,6 +146,7 @@ details.eurek-details[open] .eurek-details-body {
 .gallery-grid-caption {
   transform: translateY(8px);
   transition: transform 0.28s ease, opacity 0.28s ease;
+  will-change: transform, opacity;
 }
 .group:hover .gallery-grid-caption {
   transform: translateY(0);
@@ -158,6 +159,7 @@ details.eurek-details[open] .eurek-details-body {
 
 .animate-marquee {
   animation: marquee 25s linear infinite;
+  will-change: transform;
 }
 
 .animate-marquee:hover {

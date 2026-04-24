@@ -17,8 +17,8 @@ export default defineConfig({
     exclude: ['@google/genai', 'node-fetch', 'formdata-polyfill'],
   },
   server: {
-    // HMR is disabled in AI Studio via DISABLE_HMR env var.
-    // Do not modify: file watching is disabled to prevent flickering during agent edits.
+    host: true,
+    port: 3000,
     hmr: process.env.DISABLE_HMR !== 'true',
   },
 });
