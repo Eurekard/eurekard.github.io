@@ -474,7 +474,7 @@ function EditorGalleryPreview({
         <motion.div
           className="flex h-full"
           animate={{ x: xPos }}
-          transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+          transition={{ type: 'tween', duration: 0.35, ease: 'easeInOut' }}
           style={{
             width: trackWidth != null ? trackWidth : `${n * 100}%`,
           }}
@@ -1681,10 +1681,11 @@ function SortableElementItem({
   const onDragPointerDown = (event: React.PointerEvent<HTMLElement>) => {
     if (!isTouchDevice) return;
     const nativeEvent = event.nativeEvent;
+    // Only start drag on long press - do NOT open inspector (setSelectedId) here.
+    // onDragStart will set selectedId when the user actually starts dragging.
     dragTimerRef.current = window.setTimeout(() => {
-      setSelectedId(el.id);
       dragControls.start(nativeEvent);
-    }, 280);
+    }, 300);
   };
 
   const handleDrag = (event: MouseEvent | TouchEvent | PointerEvent) => {
@@ -1718,7 +1719,7 @@ function SortableElementItem({
         'relative cursor-pointer group rounded-[2.2rem]',
         selectedId === el.id ? 'ring-4 ring-cat-blue/50' : ''
       )}
-      style={{ touchAction: isTouchDevice ? 'pan-y' : 'none' }}
+      style={{ touchAction: isTouchDevice ? 'pan-y' : 'none', userSelect: 'none', WebkitUserSelect: 'none' } as React.CSSProperties}
     >
       <button
         type="button"

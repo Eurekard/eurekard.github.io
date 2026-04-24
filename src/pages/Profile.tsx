@@ -751,7 +751,7 @@ function GalleryBlock({
         <motion.div
           className="flex h-full"
           animate={{ x: xPos }}
-          transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+          transition={{ type: 'tween', duration: 0.35, ease: 'easeInOut' }}
           style={{
             width: trackWidth != null ? trackWidth : `${n * 100}%`,
           }}
@@ -776,10 +776,8 @@ function GalleryBlock({
     return (
       <div style={{ ...baseComponentStyle, ...visualStyle, borderColor }} className="w-full rounded-[2rem] border-3 overflow-hidden">
         {url ? (
-          <motion.a
+          <a
             href={url}
-            whileHover={{ scale: 1.01 }}
-            whileTap={{ scale: 0.99 }}
             onClick={(event) => {
               void onTrackClick();
               if (!hashLink) return;
@@ -791,7 +789,7 @@ function GalleryBlock({
             className="block"
           >
             {media}
-          </motion.a>
+          </a>
         ) : (
           <button type="button" className="block w-full text-left" onClick={() => onTrackClick()}>
             {media}
