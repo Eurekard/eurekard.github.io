@@ -24,15 +24,11 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-cream flex flex-col overflow-hidden">
-      {/* Decorative Cat Elements */}
-      <div className="absolute top-20 -left-20 w-64 h-64 bg-cat-blue/20 rounded-full blur-3xl opacity-50" />
-      <div className="absolute bottom-20 -right-20 w-80 h-80 bg-chocolate/10 rounded-full blur-3xl opacity-30" />
-
       {/* Navigation */}
       <nav className="p-6 flex justify-between items-center relative z-10">
         <div className="flex items-center gap-2 text-chocolate">
           <Lightbulb className="w-8 h-8 text-cat-blue" strokeWidth={2.5} />
-          <span className="font-display font-bold text-2xl tracking-tight">Eurekard</span>
+          <span className="font-display font-bold text-2xl tracking-tight">尤里卡</span>
         </div>
         <button 
           onClick={handleStart}
@@ -72,16 +68,6 @@ export default function Home() {
               {user ? '立即開始製作' : '使用 Google 登入'}
               <ArrowRight className="group-hover:translate-x-1 transition-transform" />
             </button>
-            <div className="flex items-center gap-4 px-6 py-4 bg-white/50 backdrop-blur-sm border border-white/50 rounded-3xl">
-              <div className="flex -space-x-3">
-                {[1, 2, 3].map(i => (
-                  <div key={i} className="w-10 h-10 rounded-full border-2 border-cream bg-cat-blue/30 flex items-center justify-center overflow-hidden">
-                    <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=cat${i}`} alt="avatar" />
-                  </div>
-                ))}
-              </div>
-              <span className="text-sm font-medium text-chocolate/80">已有多位名片主加入</span>
-            </div>
           </div>
         </motion.div>
 

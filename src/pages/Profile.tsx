@@ -170,7 +170,7 @@ export default function Profile() {
         <h1 className="text-4xl font-bold text-chocolate">哎呀！找不到這個名片</h1>
         <p className="text-chocolate/60">這個連結可能已經失效，或是用戶修改了專屬網址。</p>
         <Link to="/" className="px-8 py-4 bg-chocolate text-white rounded-2xl font-bold">
-          返回 Eurekard 首頁
+          返回尤里卡首頁
         </Link>
       </div>
     );
@@ -295,7 +295,7 @@ export default function Profile() {
         <footer className="mt-20 text-center space-y-6">
           <Link to="/" className="inline-flex items-center gap-2 px-6 py-3 bg-white/50 backdrop-blur-md rounded-full border border-white/50 text-xs font-black text-chocolate uppercase tracking-widest hover:bg-white transition-all">
             <LightbulbLogo />
-            使用 Eurekard 製作
+            使用尤里卡製作
           </Link>
           <p className="text-[10px] text-chocolate/30 font-bold uppercase tracking-[0.2em]">
             © {new Date().getFullYear()} • EUREKARD INC.
