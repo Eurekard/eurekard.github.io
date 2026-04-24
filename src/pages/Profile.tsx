@@ -180,7 +180,7 @@ export default function Profile() {
     handleHashChange();
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data?.published_content?.elements]);
 
   const handleTrackClick = async (targetId?: string) => {
@@ -775,26 +775,21 @@ function GalleryBlock({
 
     return (
       <div style={{ ...baseComponentStyle, ...visualStyle, borderColor }} className="w-full rounded-[2rem] border-3 overflow-hidden">
-        {url ? (
-          <a
-            href={url}
-            onClick={(event) => {
-              void onTrackClick();
-              if (!hashLink) return;
-              event.preventDefault();
+        {/* Always use div wrapper so motion.div inside never remounts on slide changes */}
+        <div
+          className={cn('block w-full', url && 'cursor-pointer')}
+          onClick={() => {
+            void onTrackClick();
+            if (!url) return;
+            if (hashLink) {
               onHashNavigate(url);
-            }}
-            target={hashLink ? undefined : '_blank'}
-            rel={hashLink ? undefined : 'noopener noreferrer'}
-            className="block"
-          >
-            {media}
-          </a>
-        ) : (
-          <button type="button" className="block w-full text-left" onClick={() => onTrackClick()}>
-            {media}
-          </button>
-        )}
+            } else {
+              window.open(url, '_blank', 'noopener,noreferrer');
+            }
+          }}
+        >
+          {media}
+        </div>
 
         <div className="p-4 flex items-center gap-3">
           <button

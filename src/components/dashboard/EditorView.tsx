@@ -1705,7 +1705,7 @@ function SortableElementItem({
       dragControls={dragControls}
       dragListener={false}
       whileDrag={{ scale: 1, zIndex: 40 }}
-      onDragStart={() => setSelectedId(el.id)}
+      onDragStart={() => { /* drag started - inspector stays as-is */ }}
       onDrag={handleDrag}
       onClick={(e) => {
         e.stopPropagation();
