@@ -83,7 +83,7 @@ export default function MusicPlayer({ url, borderColor, textColor, className, st
   }
 
   return (
-    <div style={style} className={cn('w-full rounded-[2rem] border p-4 text-center text-sm opacity-70', className)}>
+    <div style={style} className={cn('w-full rounded-[2rem] border-3 p-4 text-center text-sm opacity-70', className)}>
       請貼上有效的 <strong>YouTube</strong> 或 <strong>YouTube Music</strong> 影片／播放清單連結
     </div>
   );
@@ -305,14 +305,14 @@ function YouTubeBarPlayer({
   return (
     <div
       style={{ ...style, borderColor, ...(uiColor ? { color: uiColor, ['--eurek-music' as any]: uiColor } : {}) }}
-      className={cn('w-full rounded-[2rem] border overflow-hidden bg-white/40', !uiColor && 'text-chocolate', className)}
+      className={cn('w-full rounded-[2rem] border-3 overflow-hidden bg-white/40', !uiColor && 'text-chocolate', className)}
     >
       <div ref={hostRef} className="pointer-events-none fixed left-[-240px] top-0 h-[200px] w-[200px] opacity-0" aria-hidden />
 
       <div className="p-5 space-y-2" style={uiColor ? { color: uiColor } : undefined}>
         <div className="flex items-center gap-3 space-y-2">
           <div
-            className="h-14 w-14 shrink-0 overflow-hidden rounded-xl border bg-black/5"
+            className="h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-black/5"
             style={borderColor ? { borderColor } : undefined}
           >
             <img src={thumb} alt="" className="h-full w-full object-cover" />

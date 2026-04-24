@@ -178,7 +178,7 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
             className="text-center mb-12 cursor-pointer transition-transform hover:scale-105 active:scale-95" 
             onClick={(e) => { e.stopPropagation(); setSelectedId('profile'); }}
           >
-            <motion.div className={cn("w-32 h-32 rounded-[3rem] mx-auto mb-6 p-1.5 relative overflow-hidden transition-all", isProfileSelected ? "ring-4 ring-cat-blue" : "")}>
+            <motion.div className={cn("w-32 h-32 rounded-[4rem] mx-auto mb-6 p-1.5 relative overflow-hidden transition-all", isProfileSelected ? "ring-4 ring-cat-blue" : "")}>
               <img 
                 src={profileData.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${cardData.uid}`} 
                 alt={profileData.displayName}
@@ -200,7 +200,7 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
             className="space-y-6 pb-32" // extra padding for bottom FABs
           >
             {elements.length === 0 && (
-              <div className="text-center py-20 text-chocolate/20 font-bold uppercase tracking-widest bg-white/20 rounded-[3rem] border border-dashed border-chocolate/5">
+              <div className="text-center py-20 text-chocolate/20 font-bold uppercase tracking-widest bg-white/20 rounded-[2rem] border-3 border-dashed border-chocolate/5">
                 這裡目前還沒有任何內容...
               </div>
             )}
@@ -286,9 +286,9 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
                 <button
                   key={et.type}
                   onClick={() => handleAdd(et.type)}
-                  className="flex flex-col items-center justify-center gap-2 p-6 bg-white border-2 border-transparent hover:border-cat-blue/20 bg-cream/30 rounded-2xl hover:text-cat-blue transition-all group hover:-translate-y-1"
+                  className="flex flex-col items-center justify-center gap-2 p-6 bg-white border-3 border-transparent hover:border-cat-blue/20 bg-cream/30 rounded-2xl hover:text-cat-blue transition-all group hover:-translate-y-1"
                 >
-                  <div className="w-12 h-12 bg-white rounded-xl border border-chocolate/5 flex items-center justify-center group-hover:bg-cat-blue group-hover:text-white transition-colors">
+                  <div className="w-12 h-12 bg-white rounded-xl border-3 border-chocolate/5 flex items-center justify-center group-hover:bg-cat-blue group-hover:text-white transition-colors">
                     <et.icon size={24} />
                   </div>
                   <span className="text-xs font-bold">{et.label}</span>
@@ -445,7 +445,7 @@ function EditorGalleryPreview({
   }, []);
 
   if (images.length === 0) {
-    return <div style={baseComponentStyle} className="w-full p-6 rounded-[2rem] border text-sm opacity-60">圖庫尚未新增圖片</div>;
+    return <div style={baseComponentStyle} className="w-full p-6 rounded-[2rem] border-3 text-sm opacity-60">圖庫尚未新增圖片</div>;
   }
 
   if (content.layout === 'slideshow') {
@@ -488,7 +488,7 @@ function EditorGalleryPreview({
     );
 
     return (
-      <div style={{ ...baseComponentStyle, ...visualStyle, borderColor }} className="w-full rounded-[2rem] border overflow-hidden">
+      <div style={{ ...baseComponentStyle, ...visualStyle, borderColor }} className="w-full rounded-[2rem] border-3 overflow-hidden">
         {url ? (
           <a href={url} className="block" onPointerDown={(e) => e.stopPropagation()}>
             {media}
@@ -542,7 +542,7 @@ function EditorGalleryPreview({
         const rawLink = String(img.link || '').trim();
         const url = disableLinks ? '' : rawLink ? normalizeLinkTarget(rawLink) : '';
         const inner = (
-          <div className="relative aspect-square w-full overflow-hidden rounded-2xl border bg-black/5 group" style={{ borderColor }}>
+          <div className="relative aspect-square w-full overflow-hidden rounded-2xl border-3 bg-black/5 group" style={{ borderColor }}>
             <img src={img.url} alt={img.caption || `圖庫 ${idx + 1}`} className={cn('h-full w-full', content.fill ? 'object-cover' : 'object-contain')} />
             {img.caption ? (
               <div className="pointer-events-none absolute inset-x-0 bottom-0 overflow-hidden opacity-0 transition-opacity duration-200 group-hover:opacity-100">
@@ -616,7 +616,7 @@ function ElementPreview({
       color: globalStyles.textColor,
     };
     return (
-      <div style={buttonStyle} className="w-full p-5 border rounded-[2rem] font-bold flex items-center justify-between group pointer-events-none">
+      <div style={buttonStyle} className="w-full p-5 border-3 rounded-[2rem] font-bold flex items-center justify-between group pointer-events-none">
         <div className="flex items-center gap-4">
           <div style={{ color: globalStyles.textColor }} className="w-10 h-10 rounded-2xl flex items-center justify-center">
             <LinkIcon size={18} />
@@ -634,7 +634,7 @@ function ElementPreview({
           ...baseComponentStyle,
           borderColor: globalStyles.componentBorderColor,
         }}
-        className="w-full p-8 rounded-[3rem] border space-y-4 relative overflow-hidden pointer-events-none"
+        className="w-full p-8 rounded-[2rem] border-3 space-y-4 relative overflow-hidden pointer-events-none"
       >
         <div className="absolute -top-10 -right-10 opacity-10 rotate-12">
           <Heart size={120} />
@@ -646,7 +646,7 @@ function ElementPreview({
           <h3 className="font-bold text-xl">{content.title || '給我留言'}</h3>
         </div>
         <div className="relative z-10 space-y-4">
-          <div className="w-full bg-white/30 border border-white/50 rounded-[2rem] p-5 truncate opacity-70">
+          <div className="w-full bg-white/30 border-3 border-white/50 rounded-[2rem] p-5 truncate opacity-70">
             {content.placeholder || "在此輸入想說的話..."}
           </div>
           <div
@@ -661,7 +661,7 @@ function ElementPreview({
   }
 
   if (type === 'image') {
-    return <img src={content.url} style={{ borderColor: globalStyles.componentBorderColor, ...visualStyle }} className="w-full h-auto rounded-[3rem] border pointer-events-none" alt="preview" />;
+    return <img src={content.url} style={{ borderColor: globalStyles.componentBorderColor, ...visualStyle }} className="w-full h-auto rounded-[2rem] border-3 pointer-events-none" alt="preview" />;
   }
 
   if (type === 'gallery') {
@@ -703,7 +703,7 @@ function ElementPreview({
     return (
       <div
         style={{ ...baseComponentStyle, ...visualStyle }}
-        className="w-full p-5 rounded-[2rem] border flex items-center justify-between"
+        className="w-full p-5 rounded-[2rem] border-3 flex items-center justify-between"
       >
         <div>
           <div style={{ color: globalStyles.textColor }} className="text-xs font-bold uppercase tracking-wider opacity-70">{content.label || '下拉選單'}</div>
@@ -725,7 +725,7 @@ function ElementPreview({
             <div
               key={`tag-${idx}`}
               style={{ ...baseComponentStyle, ...visualStyle }}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-full border font-medium text-sm"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-full border-3 font-medium text-sm"
             >
               {item.icon ? <span>{item.icon}</span> : null}
               <span>{item.text || `標籤 ${idx + 1}`}</span>
@@ -740,7 +740,7 @@ function ElementPreview({
     const embedHtml = content.html || buildEmbedHtmlFromUrl(content.url || '');
     if (!embedHtml) {
       return (
-        <div className="w-full rounded-[2rem] overflow-hidden border bg-cream flex flex-col items-center justify-center p-8 text-center pointer-events-none">
+        <div className="w-full rounded-[2rem] overflow-hidden border-3 bg-cream flex flex-col items-center justify-center p-8 text-center pointer-events-none">
            <Play className="text-chocolate/20 mb-4" size={48} />
            <p className="font-bold text-chocolate">嵌入內容區域</p>
            <p className="text-xs text-chocolate/50 font-mono mt-2 truncate w-full">請在屬性面板貼上影音連結或 iframe 代碼</p>
@@ -750,7 +750,7 @@ function ElementPreview({
     return (
       <div 
         style={{ borderColor: globalStyles.componentBorderColor }}
-        className="w-full rounded-[2rem] overflow-hidden border bg-cream flex flex-col items-center justify-center pointer-events-none"
+        className="w-full rounded-[2rem] overflow-hidden border-3 bg-cream flex flex-col items-center justify-center pointer-events-none"
       >
         <StableEmbedHtml embedHtml={embedHtml} />
       </div>
@@ -761,7 +761,7 @@ function ElementPreview({
     const rawUrl = String(content.url || '').trim();
     if (!rawUrl) {
       return (
-        <div style={baseComponentStyle} className="w-full rounded-[2rem] border p-6 text-center">
+        <div style={baseComponentStyle} className="w-full rounded-[2rem] border-3 p-6 text-center">
           <Music className="mx-auto mb-2 opacity-40" />
           <div className="text-sm opacity-70">貼上 YouTube 或 YouTube Music 連結</div>
         </div>
@@ -858,7 +858,7 @@ function ImageUploadControl({ currentUrl, onUploadComplete }: { currentUrl?: str
   return (
     <div className="space-y-2">
       <label className="block text-xs font-bold text-chocolate/40">上傳圖片檔案</label>
-      <div className="relative group overflow-hidden rounded-2xl border-2 border-dashed border-chocolate/10 hover:border-cat-blue/50 transition-colors bg-cream/30">
+      <div className="relative group overflow-hidden rounded-2xl border-3 border-dashed border-chocolate/10 hover:border-cat-blue/50 transition-colors bg-cream/30">
         <input 
           type="file" 
           accept="image/*" 
@@ -1039,7 +1039,7 @@ function GlobalStyleControls({ styles, onChange }: { styles: GlobalDesignStyles;
                   type="color"
                   value={color}
                   onChange={(e) => updatePalette(index, e.target.value)}
-                  className="h-12 w-full cursor-pointer rounded-lg border border-chocolate/10 bg-transparent"
+                  className="h-12 w-full cursor-pointer rounded-lg border-3 border-chocolate/10 bg-transparent"
                 />
                 <div className="flex items-center gap-1">
                   <button
@@ -1057,7 +1057,7 @@ function GlobalStyleControls({ styles, onChange }: { styles: GlobalDesignStyles;
           <button
             onClick={addPalette}
             disabled={palette.length >= 10}
-            className="w-full p-3 rounded-xl text-xs font-bold bg-white border border-chocolate/10 hover:bg-chocolate hover:text-white transition-colors disabled:opacity-40"
+            className="w-full p-3 rounded-xl text-xs font-bold bg-white border-3 border-chocolate/10 hover:bg-chocolate hover:text-white transition-colors disabled:opacity-40"
           >
             新增顏色
           </button>
@@ -1103,7 +1103,7 @@ function PaletteSelector({
               key={`${title}-${index}`}
               onClick={() => onPick(color)}
               className={cn(
-                'h-8 w-8 rounded-md border-2 transition-transform hover:scale-105',
+                'h-8 w-8 rounded-md border-3 transition-transform hover:scale-105',
                 isSelected ? 'border-chocolate shadow-md' : 'border-white/70'
               )}
               style={{ backgroundColor: color }}
@@ -1150,7 +1150,7 @@ function CompactImageUploadControl({ onUploadComplete }: { onUploadComplete: (ur
   };
 
   return (
-    <label className="relative block overflow-hidden rounded-xl border-2 border-dashed border-chocolate/15 bg-white/80 hover:border-cat-blue/60 transition-colors cursor-pointer">
+    <label className="relative block overflow-hidden rounded-xl border-3 border-dashed border-chocolate/15 bg-white/80 hover:border-cat-blue/60 transition-colors cursor-pointer">
       <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" disabled={uploading} />
       <div className="py-4 px-3 text-center">
         {uploading ? (
@@ -1185,9 +1185,16 @@ function CountdownBlock({ title, targetAt, style }: { title?: string; targetAt?:
   const secs = Math.floor((diff / 1000) % 60);
 
   return (
-    <div style={style} className="w-full rounded-[2rem] border p-5 text-center font-bold">
-      <div className="text-sm opacity-70">{title || '活動倒數'}</div>
-      <div className="mt-2 text-xl tabular-nums">{days}天 {hours}時 {mins}分 {secs}秒</div>
+    <div style={style} className="w-full rounded-[2rem] border-3 p-5 text-center font-bold">
+      <div className="text-sm opacity-70 mb-3">{title || '活動倒數'}</div>
+      <div className="flex items-baseline justify-center">
+        {[ { v: days, u: '天' }, { v: hours, u: '時' }, { v: mins, u: '分' }, { v: secs, u: '秒' } ].map((t, i) => (
+          <React.Fragment key={i}>
+            <span className="text-xl tabular-nums">{t.v}</span>
+            <span className="text-sm opacity-70 ml-1 mr-3 last:mr-0">{t.u}</span>
+          </React.Fragment>
+        ))}
+      </div>
     </div>
   );
 }
@@ -1215,7 +1222,7 @@ function InspectorControls({ el, onUpdate }: { el: CardElement, onUpdate: (u: an
           onChange={(e) => handleChange('text', e.target.value)}
           className="w-full p-4 bg-cream border-none rounded-xl focus:ring-2 ring-cat-blue/20 outline-none text-sm min-h-[100px]"
         />
-        <details className="rounded-xl border border-chocolate/10 bg-white/60 p-3">
+        <details className="rounded-xl border-3 border-chocolate/10 bg-white/60 p-3">
           <summary className="cursor-pointer text-xs font-bold text-chocolate/60">支援 Markdown 語法</summary>
           <div className="mt-3 text-xs text-chocolate/70 space-y-2">
             <div><span className="font-black">換行</span>：<code>&lt;br&gt;</code></div>
@@ -1328,7 +1335,7 @@ function InspectorControls({ el, onUpdate }: { el: CardElement, onUpdate: (u: an
           className="w-full p-4 bg-cream border-none rounded-xl font-mono text-xs outline-none focus:ring-2 ring-cat-blue/20"
           placeholder='<iframe src="https://open.spotify.com/embed/..." ...></iframe>'
         />
-        <div className="p-4 bg-chocolate/5 rounded-xl border border-chocolate/10">
+        <div className="p-4 bg-chocolate/5 rounded-xl border-3 border-chocolate/10">
           <p className="text-xs font-bold text-chocolate mb-2">支援方式</p>
           <ul className="text-xs text-chocolate/60 space-y-2 list-disc pl-4">
             <li><strong>YouTube / Spotify:</strong> 直接貼上影音連結，系統會自動轉成播放器。</li>
@@ -1361,7 +1368,7 @@ function InspectorControls({ el, onUpdate }: { el: CardElement, onUpdate: (u: an
     const updateImages = (nextImages: Array<{ url: string; caption?: string; link?: string }>) => handleChange('images', nextImages);
     return (
       <div className="space-y-4">
-        <details className="eurek-details rounded-2xl border border-chocolate/10 bg-white/60 overflow-hidden">
+        <details className="eurek-details rounded-2xl border-3 border-chocolate/10 bg-white/60 overflow-hidden">
           <summary className="cursor-pointer px-4 py-3 text-xs font-black text-chocolate/70">圖庫設定</summary>
           <div className="eurek-details-body px-4 pb-4 space-y-3 border-t border-chocolate/10">
             <label className="block text-xs font-bold text-chocolate/40">圖庫版型</label>
@@ -1380,7 +1387,7 @@ function InspectorControls({ el, onUpdate }: { el: CardElement, onUpdate: (u: an
         <label className="block text-xs font-bold text-chocolate/40">圖片清單</label>
         <div className="space-y-2">
           {images.map((img: any, index: number) => (
-            <details key={`gallery-${index}`} className="eurek-details rounded-2xl border border-chocolate/10 bg-white/70 overflow-hidden">
+            <details key={`gallery-${index}`} className="eurek-details rounded-2xl border-3 border-chocolate/10 bg-white/70 overflow-hidden">
               <summary className="cursor-pointer list-none px-3 py-2 flex items-center justify-between gap-3">
                 <div className="text-xs font-black text-chocolate/70 truncate">圖片 {index + 1}</div>
                 <div className="text-[10px] font-bold text-chocolate/35">展開</div>
@@ -1436,7 +1443,7 @@ function InspectorControls({ el, onUpdate }: { el: CardElement, onUpdate: (u: an
               </div>
             </details>
           ))}
-          <button onClick={() => updateImages([...images, { url: '', caption: '', link: '' }])} className="w-full p-3 rounded-xl text-xs font-bold bg-white border border-chocolate/10 hover:bg-chocolate hover:text-white transition-colors">
+          <button onClick={() => updateImages([...images, { url: '', caption: '', link: '' }])} className="w-full p-3 rounded-xl text-xs font-bold bg-white border-3 border-chocolate/10 hover:bg-chocolate hover:text-white transition-colors">
             新增圖片
           </button>
         </div>
@@ -1548,7 +1555,7 @@ function InspectorControls({ el, onUpdate }: { el: CardElement, onUpdate: (u: an
         <Reorder.Group axis="y" values={items} onReorder={updateItems} className="space-y-2">
           {items.map((item: { label: string; url: string }, index: number) => (
             <Reorder.Item key={`dropdown-item-${index}`} value={item} className="flex items-center gap-2">
-              <div className="w-9 h-9 shrink-0 inline-flex items-center justify-center rounded-xl bg-white border border-chocolate/10 text-chocolate/40 cursor-move">
+              <div className="w-9 h-9 shrink-0 inline-flex items-center justify-center rounded-xl bg-white border-3 border-chocolate/10 text-chocolate/40 cursor-move">
                 <GripVertical size={16} />
               </div>
               <input
@@ -1583,7 +1590,7 @@ function InspectorControls({ el, onUpdate }: { el: CardElement, onUpdate: (u: an
         </Reorder.Group>
           <button
             onClick={() => updateItems([...items, { label: `項目 ${items.length + 1}`, url: '#' }])}
-            className="w-full p-3 rounded-xl text-xs font-bold bg-white border border-chocolate/10 hover:bg-chocolate hover:text-white transition-colors"
+            className="w-full p-3 rounded-xl text-xs font-bold bg-white border-3 border-chocolate/10 hover:bg-chocolate hover:text-white transition-colors"
           >
             新增選項
           </button>
@@ -1629,7 +1636,7 @@ function InspectorControls({ el, onUpdate }: { el: CardElement, onUpdate: (u: an
           ))}
           <button
             onClick={() => updateItems([...items, { text: `標籤 ${items.length + 1}`, icon: '✨' }])}
-            className="w-full p-3 rounded-xl text-xs font-bold bg-white border border-chocolate/10 hover:bg-chocolate hover:text-white transition-colors"
+            className="w-full p-3 rounded-xl text-xs font-bold bg-white border-3 border-chocolate/10 hover:bg-chocolate hover:text-white transition-colors"
           >
             新增標籤
           </button>
@@ -1753,7 +1760,7 @@ function GalleryImageUpload({ onUploadComplete }: { onUploadComplete: (url: stri
       onUploadComplete(uploadedUrl);
     } catch (error) {
       console.error(error);
-      alert('上傳失敗，請檢查 R2 設定或稍後再試');
+      alert('上傳失敗，請稍後再試');
     } finally {
       setTimeout(() => {
         setUploading(false);
@@ -1763,7 +1770,7 @@ function GalleryImageUpload({ onUploadComplete }: { onUploadComplete: (url: stri
   };
 
   return (
-    <label className="relative block overflow-hidden rounded-xl border-2 border-dashed border-chocolate/15 bg-white/80 hover:border-cat-blue/60 transition-colors cursor-pointer">
+    <label className="relative block overflow-hidden rounded-xl border-3 border-dashed border-chocolate/15 bg-white/80 hover:border-cat-blue/60 transition-colors cursor-pointer">
       <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" disabled={uploading} />
       <div className="py-3 px-3 text-center">
         {uploading ? (

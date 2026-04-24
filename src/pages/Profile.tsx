@@ -158,7 +158,7 @@ export default function Profile() {
   if (loading) {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-cream">
-        <div className="w-16 h-16 border-4 border-cat-blue border-t-transparent rounded-full animate-spin"></div>
+        <div className="w-16 h-16 border-3 border-cat-blue border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
   }
@@ -205,7 +205,7 @@ export default function Profile() {
         <div className="text-center mb-12">
           <motion.div 
             whileHover={{ scale: 1.05 }}
-            className="w-32 h-32 rounded-[3rem] mx-auto mb-6 p-1.5 relative overflow-hidden"
+            className="w-32 h-32 rounded-[4rem] mx-auto mb-6 p-1.5 relative overflow-hidden"
           >
             <img 
               src={data.profile?.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.uid}`} 
@@ -223,7 +223,7 @@ export default function Profile() {
         {/* Dynamic Content */}
         <div className="space-y-6">
           {!hasAnyVisibleContent && (
-            <div className="text-center py-20 text-chocolate/20 font-bold uppercase tracking-widest bg-white/20 rounded-[3rem] border border-dashed border-chocolate/5">
+            <div className="text-center py-20 text-chocolate/20 font-bold uppercase tracking-widest bg-white/20 rounded-[2rem] border-3 border-dashed border-chocolate/5">
               這裡目前還沒有任何內容...
             </div>
           )}
@@ -293,7 +293,7 @@ export default function Profile() {
 
         {/* Footer */}
         <footer className="mt-20 text-center space-y-6">
-          <Link to="/" className="inline-flex items-center gap-2 px-6 py-3 bg-white/50 backdrop-blur-md rounded-full border border-white/50 text-xs font-black text-chocolate uppercase tracking-widest hover:bg-white transition-all">
+          <Link to="/" className="inline-flex items-center gap-2 px-6 py-3 bg-white/50 backdrop-blur-md rounded-full border-3 border-white/50 text-xs font-black text-chocolate uppercase tracking-widest hover:bg-white transition-all">
             <LightbulbLogo />
             使用尤里卡製作
           </Link>
@@ -366,7 +366,7 @@ function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, se
         target={hashLink ? undefined : '_blank'}
         rel={hashLink ? undefined : 'noopener noreferrer'}
         style={buttonStyle}
-        className="w-full p-5 border rounded-[2rem] font-bold flex items-center justify-between group"
+        className="w-full p-5 border-3 rounded-[2rem] font-bold flex items-center justify-between group"
       >
         <div className="flex items-center gap-4">
           <div style={{ color: globalStyles?.textColor }} className="w-10 h-10 rounded-2xl flex items-center justify-center transition-colors">
@@ -388,7 +388,7 @@ function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, se
           ...baseComponentStyle,
           borderColor: globalStyles?.componentBorderColor,
         }}
-        className="w-full p-8 rounded-[3rem] border space-y-4 relative overflow-hidden group"
+        className="w-full p-8 rounded-[2rem] border-3 space-y-4 relative overflow-hidden group"
       >
         <div className="absolute -top-10 -right-10 opacity-10 rotate-12 transition-transform duration-1000 group-hover:scale-150">
           <MessageSquare size={120} />
@@ -407,7 +407,7 @@ function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, se
             value={anonMessage}
             onChange={(e) => setAnonMessage(e.target.value)}
             rows={3}
-            className="w-full bg-white/30 border border-white/50 rounded-[2rem] p-5 outline-none focus:ring-4 ring-white/20 placeholder:text-current/40 text-current resize-none"
+            className="w-full bg-white/30 border-3 border-white/50 rounded-[2rem] p-5 outline-none focus:ring-4 ring-white/20 placeholder:text-current/40 text-current resize-none"
           />
           <button 
             onClick={onSendAnon}
@@ -428,7 +428,7 @@ function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, se
                 <div className="text-sm text-white/55">目前還沒有公開回覆</div>
               ) : (
                 publicReplies.slice(0, 8).map((row: AnonResponse) => (
-                  <div key={row.id} className="rounded-2xl bg-white/10 border border-white/20 p-4 space-y-2">
+                  <div key={row.id} className="rounded-2xl bg-white/10 border-3 border-white/20 p-4 space-y-2">
                     <div className="text-[11px] text-white/60">{row.message}</div>
                     <div className="text-sm text-white font-medium">{row.reply}</div>
                   </div>
@@ -442,7 +442,7 @@ function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, se
   }
 
   if (type === 'image') {
-    return <img src={content.url} style={{ borderColor: globalStyles?.componentBorderColor, ...visualStyle }} className="w-full h-auto rounded-[3rem] border" alt="card image" />;
+    return <img src={content.url} style={{ borderColor: globalStyles?.componentBorderColor, ...visualStyle }} className="w-full h-auto rounded-[2rem] border" alt="card image" />;
   }
 
   if (type === 'gallery') {
@@ -467,7 +467,7 @@ function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, se
   if (type === 'dropdown') {
     const items = Array.isArray(content.items) ? content.items : [];
     return (
-      <div style={{ ...baseComponentStyle, ...visualStyle }} className="w-full p-5 rounded-[2rem] border">
+      <div style={{ ...baseComponentStyle, ...visualStyle }} className="w-full p-5 rounded-[2rem] border-3">
         <AnimatedDropdown
           label={content.label || '下拉選單'}
           items={items}
@@ -488,7 +488,7 @@ function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, se
           <span
             key={`tag-public-${index}`}
             style={{ ...baseComponentStyle, ...visualStyle }}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full border text-sm font-medium"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full border-3 text-sm font-medium"
           >
             {item.icon ? <span>{item.icon}</span> : null}
             <span>{item.text || `標籤 ${index + 1}`}</span>
@@ -504,7 +504,7 @@ function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, se
     return (
       <div
         style={{ borderColor: globalStyles?.componentBorderColor }}
-        className="w-full rounded-[2rem] overflow-hidden border bg-cream flex flex-col items-center justify-center embed-container"
+        className="w-full rounded-[2rem] overflow-hidden border-3 bg-cream flex flex-col items-center justify-center embed-container"
         dangerouslySetInnerHTML={{ __html: embedHtml }}
       />
     );
@@ -514,7 +514,7 @@ function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, se
     const rawUrl = String(content.url || '').trim();
     if (!rawUrl) {
       return (
-        <div style={{ ...baseComponentStyle, ...visualStyle }} className="w-full rounded-[2rem] border p-6 text-center">
+        <div style={{ ...baseComponentStyle, ...visualStyle }} className="w-full rounded-[2rem] border-3 p-6 text-center">
           <div className="text-sm opacity-70">尚未設定音樂連結</div>
         </div>
       );
@@ -579,7 +579,7 @@ function GalleryBlock({
   }, []);
 
   if (images.length === 0) {
-    return <div style={{ ...baseComponentStyle, ...visualStyle }} className="w-full rounded-[2rem] border p-6 text-sm opacity-60">圖庫尚未新增圖片</div>;
+    return <div style={{ ...baseComponentStyle, ...visualStyle }} className="w-full rounded-[2rem] border-3 p-6 text-sm opacity-60">圖庫尚未新增圖片</div>;
   }
 
   if (content.layout === 'slideshow') {
@@ -623,7 +623,7 @@ function GalleryBlock({
     );
 
     return (
-      <div style={{ ...baseComponentStyle, ...visualStyle, borderColor }} className="w-full rounded-[2rem] border overflow-hidden">
+      <div style={{ ...baseComponentStyle, ...visualStyle, borderColor }} className="w-full rounded-[2rem] border-3 overflow-hidden">
         {url ? (
           <motion.a
             href={url}
@@ -697,7 +697,7 @@ function GalleryBlock({
         const url = rawLink ? normalizeLinkTarget(rawLink) : '';
         const hashLink = isHashLink(url);
         const inner = (
-          <div className="relative aspect-square w-full overflow-hidden rounded-2xl border bg-black/5 group" style={{ borderColor }}>
+          <div className="relative aspect-square w-full overflow-hidden rounded-2xl border-3 bg-black/5 group" style={{ borderColor }}>
             <img
               src={img.url}
               alt={img.caption || `圖庫 ${idx + 1}`}
@@ -772,9 +772,16 @@ function CountdownDisplay({ title, targetAt, style }: { title?: string; targetAt
   const secs = Math.floor((diff / 1000) % 60);
 
   return (
-    <div style={style} className="w-full rounded-[2rem] border p-5 text-center font-bold">
+    <div style={style} className="w-full rounded-[2rem] border-3 p-5 text-center font-bold">
       <div className="text-sm opacity-70">{title || '活動倒數'}</div>
-      <div className="mt-2 text-xl tabular-nums">{days}天 {hours}時 {mins}分 {secs}秒</div>
+      <div className="flex items-baseline justify-center">
+        {[ { v: days, u: '天' }, { v: hours, u: '時' }, { v: mins, u: '分' }, { v: secs, u: '秒' } ].map((t, i) => (
+          <React.Fragment key={i}>
+            <span className="text-xl tabular-nums">{t.v}</span>
+            <span className="text-sm opacity-70 ml-1 mr-3 last:mr-0">{t.u}</span>
+          </React.Fragment>
+        ))}
+      </div>
     </div>
   );
 }

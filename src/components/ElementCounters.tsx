@@ -47,7 +47,7 @@ export function VisitorCounter({
   }, [cardId, elementId, mode]);
 
   return (
-    <div style={style} className="w-full rounded-[2rem] border p-5 text-center font-bold">
+    <div style={style} className="w-full rounded-[2rem] border-3 p-5 text-center font-bold">
       <div className="text-sm opacity-70">{content?.title || '訪客次數'}</div>
       <div className="text-2xl mt-1">
         {content?.prefix || '👀'} {count}
@@ -131,7 +131,7 @@ export function MoodCounter({
 
   if (mode !== 'live') {
     return (
-      <div style={buttonStyle} className="w-full cursor-default rounded-[2rem] border p-5 text-center font-bold flex items-center justify-between group">
+      <div style={buttonStyle} className="w-full cursor-default rounded-[2rem] border-3 p-5 text-center font-bold flex items-center justify-between group">
         {inner}
       </div>
     );
@@ -145,7 +145,7 @@ export function MoodCounter({
       style={buttonStyle}
       whileHover={{ scale: !hasVoted ? 1.02 : 1 }}
       whileTap={{ scale: !hasVoted ? 0.98 : 1 }}
-      className="w-full rounded-[2rem] border p-5 text-center font-bold disabled:opacity-50 flex items-center justify-between group"
+      className="w-full rounded-[2rem] border-3 p-5 text-center font-bold disabled:opacity-50 flex items-center justify-between group"
     >
       {inner}
     </motion.button>
