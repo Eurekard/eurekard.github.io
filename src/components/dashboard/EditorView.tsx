@@ -160,7 +160,7 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
 
   return (
     <div className="relative min-h-[calc(100vh-73px)] w-full overflow-x-hidden bg-cream flex justify-center">
-      
+
       {/* Decorative Blobs (Same as Profile) */}
       <div className="absolute top-0 left-0 w-full h-full pointer-events-none overflow-hidden select-none">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-cat-blue/10 rounded-full blur-[120px]" />
@@ -174,13 +174,13 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
         onClick={() => setSelectedId(null)} // Click outside to deselect
       >
         <div className="w-full max-w-[480px] mx-auto">
-          <div 
-            className="text-center mb-12 cursor-pointer transition-transform hover:scale-105 active:scale-95" 
+          <div
+            className="text-center mb-12 cursor-pointer transition-transform hover:scale-105 active:scale-95"
             onClick={(e) => { e.stopPropagation(); setSelectedId('profile'); }}
           >
             <motion.div className={cn("w-32 h-32 rounded-[4rem] mx-auto mb-6 p-1.5 relative overflow-hidden transition-all", isProfileSelected ? "ring-4 ring-cat-blue" : "")}>
-              <img 
-                src={profileData.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${cardData.uid}`} 
+              <img
+                src={profileData.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${cardData.uid}`}
                 alt={profileData.displayName}
                 className="w-full h-full rounded-[2.8rem] object-cover"
               />
@@ -193,9 +193,9 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
           </div>
 
           <Reorder.Group
-            axis="y" 
-            values={elements} 
-            onReorder={setElements} 
+            axis="y"
+            values={elements}
+            onReorder={setElements}
             layoutScroll
             className="space-y-6 pb-32" // extra padding for bottom FABs
           >
@@ -217,12 +217,24 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
 
                 {selectedId === el.id && (
                   <div className="absolute -right-4 -top-4 z-20">
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); setElements(elements.filter(item => item.id !== el.id)); setSelectedId(null); }}
-                      className="p-3 bg-red-500 text-white hover:bg-red-600 rounded-full transition-transform hover:scale-110 active:scale-95"
-                    >
-                      <Trash2 size={16} />
-                    </button>
+                    <ElementActionsMenu
+                      el={el}
+                      onDuplicate={() => {
+                        const newElement = {
+                          ...el,
+                          id: `el_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`
+                        };
+                        const index = elements.findIndex(item => item.id === el.id);
+                        const next = [...elements];
+                        next.splice(index + 1, 0, newElement);
+                        setElements(next);
+                        setSelectedId(newElement.id);
+                      }}
+                      onDelete={() => {
+                        setElements(elements.filter(item => item.id !== el.id));
+                        setSelectedId(null);
+                      }}
+                    />
                   </div>
                 )}
 
@@ -243,7 +255,7 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
 
       {/* Floating Action Buttons */}
       <div className="fixed top-24 right-8 z-40 flex flex-col items-end gap-4">
-        <button 
+        <button
           onClick={handleSave}
           disabled={saving}
           className="w-14 h-14 rounded-full flex items-center justify-center gap-2 bg-chocolate text-white font-bold transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:hover:scale-100 truncate"
@@ -251,7 +263,7 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
           <Save size={24} />
           {saving ? '保存中...' : ''}
         </button>
-        <button 
+        <button
           onClick={() => { setIsAddDrawerOpen(!isAddDrawerOpen); setSelectedId(null); }}
           className={cn(
             "w-14 h-14 rounded-full flex items-center justify-center transition-all bg-cat-blue text-white hover:scale-110 active:scale-95",
@@ -265,7 +277,7 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
       {/* Left Drawer: Add Elements */}
       <AnimatePresence>
         {isAddDrawerOpen && (
-          <motion.aside 
+          <motion.aside
             initial={{ x: '-100%', opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: '-100%', opacity: 0 }}
@@ -302,7 +314,7 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
       {/* Right Drawer: Properties Inspector */}
       <AnimatePresence>
         {(activeElement || isProfileSelected) && (
-          <motion.aside 
+          <motion.aside
             initial={{ x: '100%', opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: '100%', opacity: 0 }}
@@ -314,7 +326,7 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
                 <Settings2 size={18} />
                 <h3 className="text-sm font-bold uppercase tracking-widest">屬性編輯</h3>
               </div>
-              <button onClick={() => setSelectedId(null)} className="p-2 bg-cream hover:bg-chocolate hover:text-white transition-colors rounded-full"><Plus className="rotate-45" size={18}/></button>
+              <button onClick={() => setSelectedId(null)} className="p-2 bg-cream hover:bg-chocolate hover:text-white transition-colors rounded-full"><Plus className="rotate-45" size={18} /></button>
             </div>
 
             <div className="space-y-6">
@@ -331,23 +343,22 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
                   </div>
                   <div className="space-y-4">
                     <label className="block text-xs font-bold text-chocolate/40">顯示名稱</label>
-                    <input 
+                    <input
                       value={profileData.displayName}
                       onChange={(e) => setProfileData(p => ({ ...p, displayName: e.target.value }))}
                       className="w-full p-4 bg-cream border-none rounded-xl text-sm outline-none focus:ring-2 ring-cat-blue/20"
                     />
-                    <ImageUploadControl 
-                      currentUrl={profileData.avatarUrl} 
-                      onUploadComplete={(url) => setProfileData(p => ({ ...p, avatarUrl: url }))} 
+                    <ImageUploadControl
+                      currentUrl={profileData.avatarUrl}
+                      onUploadComplete={(url) => setProfileData(p => ({ ...p, avatarUrl: url }))}
                     />
-                    <textarea 
+                    <textarea
                       value={profileData.avatarUrl}
                       onChange={(e) => setProfileData(p => ({ ...p, avatarUrl: e.target.value }))}
                       rows={3}
                       className="w-full p-4 bg-cream border-none rounded-xl text-sm outline-none focus:ring-2 ring-cat-blue/20 break-all"
                       placeholder="https://"
                     />
-                    <p className="text-xs text-chocolate/40 italic">提示：上傳圖片，或貼上網址。留白則會自動使用您的 Google 帳號頭貼或產生預設圖案。</p>
                   </div>
                 </>
               ) : activeElement ? (
@@ -364,7 +375,7 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
                       <div className="text-[10px] text-chocolate/40 font-mono">ID: {activeElement.id}</div>
                     </div>
                   </div>
-                  <InspectorControls el={activeElement} onUpdate={(updates) => handleUpdate(activeElement.id, updates)} />
+                  <InspectorControls el={activeElement} onUpdate={(updates) => handleUpdate(activeElement.id, updates)} cardData={cardData} />
                 </>
               ) : null}
             </div>
@@ -376,7 +387,7 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
 }
 
 function getInitialContent(type: string) {
-  switch(type) {
+  switch (type) {
     case 'text': return { text: '輸入文字内容...', size: 'md', align: 'center' };
     case 'button': return { label: '點擊按鈕', url: '', icon: 'Link' };
     case 'image': return { url: 'https://images.unsplash.com/photo-1493612276216-ee3925520721?w=800&auto=format&fit=crop', alt: '靈感圖片' };
@@ -455,19 +466,17 @@ function EditorGalleryPreview({
     const rawLink = String(current.link || '').trim();
     const url = disableLinks ? '' : rawLink ? normalizeLinkTarget(rawLink) : '';
 
-    const trackTransform =
-      slideW > 0
-        ? `translate3d(-${index * slideW}px,0,0)`
-        : `translateX(-${(index * 100) / n}%)`;
+    const xPos = slideW > 0 ? -(index * slideW) : `-${(index * 100) / n}%`;
     const trackWidth = slideW > 0 ? n * slideW : undefined;
 
     const media = (
       <div ref={viewportRef} className="relative aspect-square w-full overflow-hidden bg-black/5">
-        <div
-          className="flex h-full transition-transform duration-300 ease-out motion-reduce:transition-none"
+        <motion.div
+          className="flex h-full"
+          animate={{ x: xPos }}
+          transition={{ type: 'spring', stiffness: 300, damping: 30 }}
           style={{
             width: trackWidth != null ? trackWidth : `${n * 100}%`,
-            transform: trackTransform,
           }}
         >
           {images.map((img: any, i: number) => (
@@ -483,7 +492,7 @@ function EditorGalleryPreview({
               />
             </div>
           ))}
-        </div>
+        </motion.div>
       </div>
     );
 
@@ -545,7 +554,7 @@ function EditorGalleryPreview({
           <div className="relative aspect-square w-full overflow-hidden rounded-2xl border-3 bg-black/5 group" style={{ borderColor }}>
             <img src={img.url} alt={img.caption || `圖庫 ${idx + 1}`} className={cn('h-full w-full', content.fill ? 'object-cover' : 'object-contain')} />
             {img.caption ? (
-              <div className="pointer-events-none absolute inset-x-0 bottom-0 overflow-hidden opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 overflow-hidden opacity-100 lg:opacity-0 transition-opacity duration-200 lg:group-hover:opacity-100">
                 <div
                   className="gallery-grid-caption w-full px-3 py-2 text-xs font-bold line-clamp-3"
                   style={{
@@ -594,13 +603,19 @@ function ElementPreview({
   if (type === 'text') {
     const alignClass = content.align === 'left' ? 'text-left' : content.align === 'right' ? 'text-right' : 'text-center';
     const html = DOMPurify.sanitize(marked.parse(String(content.text || '')) as string);
+    const textStyle = {
+      ...baseComponentStyle,
+      ...visualStyle,
+      backgroundColor: visualStyle.backgroundColor || globalStyles?.componentBackgroundColor,
+      color: globalStyles?.textColor,
+    };
     return (
       <div
-        style={{ color: globalStyles.textColor }}
+        style={textStyle}
         className={cn(
-          "font-bold leading-tight mx-auto px-4",
+          "font-bold leading-tight mx-auto p-5 border-3 rounded-[2rem] w-full",
           alignClass,
-          content.size === '6xl' ? 'text-4xl md:text-5xl font-black mb-4' : 'text-lg opacity-80'
+          content.size === '6xl' ? 'text-4xl md:text-5xl font-black' : 'text-lg'
         )}
       >
         <div className="markdown-body max-w-none prose-strong:font-black" dangerouslySetInnerHTML={{ __html: html }} />
@@ -618,8 +633,8 @@ function ElementPreview({
     return (
       <div style={buttonStyle} className="w-full p-5 border-3 rounded-[2rem] font-bold flex items-center justify-between group pointer-events-none">
         <div className="flex items-center gap-4">
-          <div style={{ color: globalStyles.textColor }} className="w-10 h-10 rounded-2xl flex items-center justify-center">
-            <LinkIcon size={18} />
+          <div className="w-10 h-10 rounded-2xl flex items-center justify-center text-2xl transition-colors">
+            {content.emoji || '🔗'}
           </div>
           <span className="text-lg">{content.label}</span>
         </div>
@@ -655,13 +670,37 @@ function ElementPreview({
           >
             送出悄悄話
           </div>
+          <div className="pt-4 space-y-3 border-t border-white/15">
+            <div className="text-xs font-bold tracking-widest uppercase text-white/80">公開回覆 (預覽)</div>
+            <div className="rounded-2xl bg-white/10 border-3 border-white/20 p-4 space-y-2">
+              <div className="text-[11px] text-white/60">這是預覽留言內容</div>
+              <div className="text-sm text-white font-medium">這是預覽回覆內容</div>
+            </div>
+          </div>
         </div>
       </div>
     );
   }
 
   if (type === 'image') {
-    return <img src={content.url} style={{ borderColor: globalStyles.componentBorderColor, ...visualStyle }} className="w-full h-auto rounded-[2rem] border-3 pointer-events-none" alt="preview" />;
+    return (
+      <div className="relative w-full overflow-hidden rounded-[2rem] border-3 group pointer-events-none" style={{ borderColor: globalStyles.componentBorderColor, ...visualStyle }}>
+        <img src={content.url} alt="preview" className="w-full h-auto object-cover" />
+        {content.caption ? (
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 overflow-hidden opacity-100 lg:opacity-0 transition-opacity duration-200 lg:group-hover:opacity-100">
+            <div
+              className="w-full px-4 py-3 text-sm font-bold line-clamp-3"
+              style={{
+                backgroundColor: globalStyles.componentBackgroundColor,
+                color: globalStyles.textColor,
+              }}
+            >
+              {content.caption}
+            </div>
+          </div>
+        ) : null}
+      </div>
+    );
   }
 
   if (type === 'gallery') {
@@ -683,7 +722,7 @@ function ElementPreview({
     const markerColor = globalStyles.textColor || globalStyles.componentBorderColor;
     const markerBg = globalStyles.componentBackgroundColor || globalStyles.backgroundColor;
     return (
-      <div style={{ backgroundColor: markerBg }} className="relative left-1/2 -translate-x-1/2 w-screen max-w-none py-2">
+      <div style={{ backgroundColor: markerBg }} className="relative left-1/2 -translate-x-1/2 w-screen max-w-none py-1">
         <div className="flex items-center gap-3 px-3">
           <div style={{ borderColor: markerColor }} className="h-0 flex-1 border-t border-dashed" />
           <span
@@ -735,20 +774,20 @@ function ElementPreview({
       </div>
     );
   }
-  
+
   if (type === 'embed') {
     const embedHtml = content.html || buildEmbedHtmlFromUrl(content.url || '');
     if (!embedHtml) {
       return (
         <div className="w-full rounded-[2rem] overflow-hidden border-3 bg-cream flex flex-col items-center justify-center p-8 text-center pointer-events-none">
-           <Play className="text-chocolate/20 mb-4" size={48} />
-           <p className="font-bold text-chocolate">嵌入內容區域</p>
-           <p className="text-xs text-chocolate/50 font-mono mt-2 truncate w-full">請在屬性面板貼上影音連結或 iframe 代碼</p>
+          <Play className="text-chocolate/20 mb-4" size={48} />
+          <p className="font-bold text-chocolate">嵌入內容區域</p>
+          <p className="text-xs text-chocolate/50 font-mono mt-2 truncate w-full">請在屬性面板貼上影音連結或 iframe 代碼</p>
         </div>
       );
     }
     return (
-      <div 
+      <div
         style={{ borderColor: globalStyles.componentBorderColor }}
         className="w-full rounded-[2rem] overflow-hidden border-3 bg-cream flex flex-col items-center justify-center pointer-events-none"
       >
@@ -845,7 +884,7 @@ function ImageUploadControl({ currentUrl, onUploadComplete }: { currentUrl?: str
       onUploadComplete(uploadedUrl);
     } catch (error) {
       console.error(error);
-      alert('上傳失敗，請檢查 R2 設定或稍後再試');
+      alert('上傳失敗，請稍後再試');
     } finally {
       setTimeout(() => {
         setUploading(false);
@@ -859,9 +898,9 @@ function ImageUploadControl({ currentUrl, onUploadComplete }: { currentUrl?: str
     <div className="space-y-2">
       <label className="block text-xs font-bold text-chocolate/40">上傳圖片檔案</label>
       <div className="relative group overflow-hidden rounded-2xl border-3 border-dashed border-chocolate/10 hover:border-cat-blue/50 transition-colors bg-cream/30">
-        <input 
-          type="file" 
-          accept="image/*" 
+        <input
+          type="file"
+          accept="image/*"
           onChange={handleFileChange}
           disabled={uploading}
           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10 disabled:cursor-not-allowed"
@@ -878,7 +917,6 @@ function ImageUploadControl({ currentUrl, onUploadComplete }: { currentUrl?: str
               <div className="text-xs font-bold text-chocolate/60">
                 點擊或拖曳圖片至此處
               </div>
-              <div className="text-[10px] text-chocolate/30">自動壓縮成 AVIF/WebP 後上傳</div>
             </>
           )}
         </div>
@@ -886,7 +924,7 @@ function ImageUploadControl({ currentUrl, onUploadComplete }: { currentUrl?: str
           <div className="absolute bottom-0 left-0 h-1 bg-cat-blue transition-all" style={{ width: `${progress}%` }} />
         )}
       </div>
-      
+
       <div className="relative flex py-4 items-center">
         <div className="flex-grow border-t border-chocolate/5"></div>
         <span className="flex-shrink-0 mx-4 text-chocolate/20 text-xs font-bold uppercase">或貼上網址</span>
@@ -930,140 +968,140 @@ function GlobalStyleControls({ styles, onChange }: { styles: GlobalDesignStyles;
       <AccordionHeader title="背景設定" isOpen={openPanel === 'background'} onClick={() => togglePanel('background')} />
       <AnimatePresence initial={false}>
         {openPanel === 'background' && (
-        <motion.div
-          initial={{ height: 0, opacity: 0 }}
-          animate={{ height: 'auto', opacity: 1 }}
-          exit={{ height: 0, opacity: 0 }}
-          transition={{ duration: 0.2, ease: 'easeOut' }}
-          className="overflow-hidden"
-        >
-        <div className="space-y-3 px-3 py-3">
-          <CompactImageUploadControl onUploadComplete={(url) => update('backgroundImageUrl', url)} />
-          <input
-            value={styles.backgroundImageUrl || ''}
-            onChange={(e) => update('backgroundImageUrl', e.target.value)}
-            className="w-full p-3 bg-white rounded-xl text-xs outline-none focus:ring-2 ring-cat-blue/20"
-            placeholder="背景圖片網址（可留白）"
-          />
-          <PaletteSelector
-            title="背景色"
-            palette={palette}
-            selected={styles.backgroundColor || '#F5F5DC'}
-            onPick={(color) => update('backgroundColor', color)}
-          />
-          <div className="grid grid-cols-2 gap-2">
-            <select
-              value={styles.backgroundRepeat || 'no-repeat'}
-              onChange={(e) => update('backgroundRepeat', e.target.value as any)}
-              className="w-full p-3 bg-white rounded-xl text-xs outline-none"
-            >
-              <option value="no-repeat">不重複</option>
-              <option value="repeat">平鋪重複</option>
-            </select>
-            <select
-              value={styles.backgroundSize || 'cover'}
-              onChange={(e) => update('backgroundSize', e.target.value as any)}
-              className="w-full p-3 bg-white rounded-xl text-xs outline-none"
-            >
-              <option value="cover">裁切填滿</option>
-              <option value="contain">完整顯示</option>
-              <option value="stretch">拉伸</option>
-              <option value="auto">原尺寸</option>
-            </select>
-          </div>
-        </div>
-        </motion.div>
-      )}
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
+            className="overflow-hidden"
+          >
+            <div className="space-y-3 px-3 py-3">
+              <CompactImageUploadControl onUploadComplete={(url) => update('backgroundImageUrl', url)} />
+              <input
+                value={styles.backgroundImageUrl || ''}
+                onChange={(e) => update('backgroundImageUrl', e.target.value)}
+                className="w-full p-3 bg-white rounded-xl text-xs outline-none focus:ring-2 ring-cat-blue/20"
+                placeholder="背景圖片網址（可留白）"
+              />
+              <PaletteSelector
+                title="背景色"
+                palette={palette}
+                selected={styles.backgroundColor || '#F5F5DC'}
+                onPick={(color) => update('backgroundColor', color)}
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <select
+                  value={styles.backgroundRepeat || 'no-repeat'}
+                  onChange={(e) => update('backgroundRepeat', e.target.value as any)}
+                  className="w-full p-3 bg-white rounded-xl text-xs outline-none"
+                >
+                  <option value="no-repeat">不重複</option>
+                  <option value="repeat">平鋪重複</option>
+                </select>
+                <select
+                  value={styles.backgroundSize || 'cover'}
+                  onChange={(e) => update('backgroundSize', e.target.value as any)}
+                  className="w-full p-3 bg-white rounded-xl text-xs outline-none"
+                >
+                  <option value="cover">裁切填滿</option>
+                  <option value="contain">完整顯示</option>
+                  <option value="stretch">拉伸</option>
+                  <option value="auto">原尺寸</option>
+                </select>
+              </div>
+            </div>
+          </motion.div>
+        )}
       </AnimatePresence>
 
       <AccordionHeader title="字體與主色" isOpen={openPanel === 'typography'} onClick={() => togglePanel('typography')} />
       <AnimatePresence initial={false}>
-      {openPanel === 'typography' && (
-        <motion.div
-          initial={{ height: 0, opacity: 0 }}
-          animate={{ height: 'auto', opacity: 1 }}
-          exit={{ height: 0, opacity: 0 }}
-          transition={{ duration: 0.2, ease: 'easeOut' }}
-          className="overflow-hidden"
-        >
-        <div className="space-y-3 px-3 py-3">
-          <select
-            value={styles.fontFamily || 'system'}
-            onChange={(e) => update('fontFamily', e.target.value as any)}
-            className="w-full p-3 bg-white rounded-xl text-xs outline-none"
+        {openPanel === 'typography' && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
+            className="overflow-hidden"
           >
-            <option value="system">系統字體</option>
-            <option value="noto-sans-tc">黑體 Noto Sans TC</option>
-            <option value="noto-serif-tc">襯線 Noto Serif TC</option>
-            <option value="chiron-goround-tc">圓體 Chiron GoRound TC</option>
-            <option value="lxgw-wenkai-tc">楷體 LXGW WenKai TC</option>
-          </select>
-          <PaletteSelector
-            title="文字色"
-            palette={palette}
-            selected={styles.textColor || '#3D2B1F'}
-            onPick={(color) => update('textColor', color)}
-          />
-          <PaletteSelector
-            title="元件底色"
-            palette={palette}
-            selected={styles.componentBackgroundColor || '#FFFFFF'}
-            onPick={(color) => update('componentBackgroundColor', color)}
-          />
-          <PaletteSelector
-            title="元件邊框"
-            palette={palette}
-            selected={styles.componentBorderColor || '#3D2B1F'}
-            onPick={(color) => update('componentBorderColor', color)}
-          />
-        </div>
-        </motion.div>
-      )}
+            <div className="space-y-3 px-3 py-3">
+              <select
+                value={styles.fontFamily || 'system'}
+                onChange={(e) => update('fontFamily', e.target.value as any)}
+                className="w-full p-3 bg-white rounded-xl text-xs outline-none"
+              >
+                <option value="system">系統字體</option>
+                <option value="noto-sans-tc">黑體 Noto Sans TC</option>
+                <option value="noto-serif-tc">襯線 Noto Serif TC</option>
+                <option value="chiron-goround-tc">圓體 Chiron GoRound TC</option>
+                <option value="lxgw-wenkai-tc">楷體 LXGW WenKai TC</option>
+              </select>
+              <PaletteSelector
+                title="文字色"
+                palette={palette}
+                selected={styles.textColor || '#3D2B1F'}
+                onPick={(color) => update('textColor', color)}
+              />
+              <PaletteSelector
+                title="元件底色"
+                palette={palette}
+                selected={styles.componentBackgroundColor || '#FFFFFF'}
+                onPick={(color) => update('componentBackgroundColor', color)}
+              />
+              <PaletteSelector
+                title="元件邊框"
+                palette={palette}
+                selected={styles.componentBorderColor || '#3D2B1F'}
+                onPick={(color) => update('componentBorderColor', color)}
+              />
+            </div>
+          </motion.div>
+        )}
       </AnimatePresence>
 
       <AccordionHeader title="主題調色盤" isOpen={openPanel === 'palette'} onClick={() => togglePanel('palette')} />
       <AnimatePresence initial={false}>
-      {openPanel === 'palette' && (
-        <motion.div
-          initial={{ height: 0, opacity: 0 }}
-          animate={{ height: 'auto', opacity: 1 }}
-          exit={{ height: 0, opacity: 0 }}
-          transition={{ duration: 0.2, ease: 'easeOut' }}
-          className="overflow-hidden"
-        >
-        <div className="space-y-3 px-3 py-3">
-          <div className="grid grid-cols-4 gap-2">
-            {palette.map((color, index) => (
-              <div key={`palette-${index}`} className="space-y-1">
-                <input
-                  type="color"
-                  value={color}
-                  onChange={(e) => updatePalette(index, e.target.value)}
-                  className="h-12 w-full cursor-pointer rounded-lg border-3 border-chocolate/10 bg-transparent"
-                />
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => removePalette(index)}
-                    className="p-1 rounded-md text-red-500 hover:bg-red-50 disabled:opacity-30"
-                    disabled={palette.length <= 1}
-                    title="刪除顏色"
-                  >
-                    <Trash2 size={17} />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-          <button
-            onClick={addPalette}
-            disabled={palette.length >= 10}
-            className="w-full p-3 rounded-xl text-xs font-bold bg-white border-3 border-chocolate/10 hover:bg-chocolate hover:text-white transition-colors disabled:opacity-40"
+        {openPanel === 'palette' && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
+            className="overflow-hidden"
           >
-            新增顏色
-          </button>
-        </div>
-        </motion.div>
-      )}
+            <div className="space-y-3 px-3 py-3">
+              <div className="grid grid-cols-4 gap-2">
+                {palette.map((color, index) => (
+                  <div key={`palette-${index}`} className="space-y-1">
+                    <input
+                      type="color"
+                      value={color}
+                      onChange={(e) => updatePalette(index, e.target.value)}
+                      className="h-12 w-full cursor-pointer rounded-lg border-3 border-chocolate/10 bg-transparent"
+                    />
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => removePalette(index)}
+                        className="p-1 rounded-md text-red-500 hover:bg-red-50 disabled:opacity-30"
+                        disabled={palette.length <= 1}
+                        title="刪除顏色"
+                      >
+                        <Trash2 size={17} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={addPalette}
+                disabled={palette.length >= 10}
+                className="w-full p-3 rounded-xl text-xs font-bold bg-white border-3 border-chocolate/10 hover:bg-chocolate hover:text-white transition-colors disabled:opacity-40"
+              >
+                新增顏色
+              </button>
+            </div>
+          </motion.div>
+        )}
       </AnimatePresence>
     </div>
   );
@@ -1188,7 +1226,7 @@ function CountdownBlock({ title, targetAt, style }: { title?: string; targetAt?:
     <div style={style} className="w-full rounded-[2rem] border-3 p-5 text-center font-bold">
       <div className="text-sm opacity-70 mb-3">{title || '活動倒數'}</div>
       <div className="flex items-baseline justify-center">
-        {[ { v: days, u: '天' }, { v: hours, u: '時' }, { v: mins, u: '分' }, { v: secs, u: '秒' } ].map((t, i) => (
+        {[{ v: days, u: '天' }, { v: hours, u: '時' }, { v: mins, u: '分' }, { v: secs, u: '秒' }].map((t, i) => (
           <React.Fragment key={i}>
             <span className="text-xl tabular-nums">{t.v}</span>
             <span className="text-sm opacity-70 ml-1 mr-3 last:mr-0">{t.u}</span>
@@ -1199,9 +1237,9 @@ function CountdownBlock({ title, targetAt, style }: { title?: string; targetAt?:
   );
 }
 
-function InspectorControls({ el, onUpdate }: { el: CardElement, onUpdate: (u: any) => void }) {
+function InspectorControls({ el, onUpdate, cardData }: { el: CardElement, onUpdate: (u: any) => void, cardData?: CardData }) {
   const { type, content } = el;
-  
+
   const handleChange = (key: string, value: any) => {
     onUpdate({ content: { ...content, [key]: value } });
   };
@@ -1217,7 +1255,7 @@ function InspectorControls({ el, onUpdate }: { el: CardElement, onUpdate: (u: an
     return (
       <div className="space-y-4">
         <label className="block text-xs font-bold text-chocolate/40">文字內容</label>
-        <textarea 
+        <textarea
           value={content.text}
           onChange={(e) => handleChange('text', e.target.value)}
           className="w-full p-4 bg-cream border-none rounded-xl focus:ring-2 ring-cat-blue/20 outline-none text-sm min-h-[100px]"
@@ -1237,7 +1275,7 @@ function InspectorControls({ el, onUpdate }: { el: CardElement, onUpdate: (u: an
         <label className="block text-xs font-bold text-chocolate/40">字體大小</label>
         <div className="flex gap-2">
           {sizeOptions.map((s) => (
-            <button 
+            <button
               key={s.value}
               onClick={() => handleChange('size', s.value)}
               className={cn("flex-1 py-2 rounded-lg text-xs font-bold", content.size === s.value ? 'bg-chocolate text-white' : 'bg-cream text-chocolate/40')}
@@ -1272,18 +1310,20 @@ function InspectorControls({ el, onUpdate }: { el: CardElement, onUpdate: (u: an
   if (type === 'button') {
     return (
       <div className="space-y-4">
+        <label className="block text-xs font-bold text-chocolate/40">按鈕圖示</label>
+        <EmojiPickerControl value={content.emoji || '🔗'} onChange={(emoji) => handleChange('emoji', emoji)} />
         <label className="block text-xs font-bold text-chocolate/40">按鈕文字</label>
-        <input 
+        <input
           value={content.label}
           onChange={(e) => handleChange('label', e.target.value)}
           className="w-full p-4 bg-cream border-none rounded-xl text-sm outline-none focus:ring-2 ring-cat-blue/20"
         />
-        <label className="block text-xs font-bold text-chocolate/40">連結（可輸入網址或區段錨點）</label>
-        <input 
+        <label className="block text-xs font-bold text-chocolate/40">連結</label>
+        <input
           value={content.url}
           onChange={(e) => handleChange('url', e.target.value)}
           className="w-full p-4 bg-cream border-none rounded-xl text-sm outline-none focus:ring-2 ring-cat-blue/20"
-          placeholder="例如：www.facebook.com 或 #home"
+          placeholder="輸入區段錨點或網址"
         />
       </div>
     );
@@ -1292,18 +1332,34 @@ function InspectorControls({ el, onUpdate }: { el: CardElement, onUpdate: (u: an
   if (type === 'image') {
     return (
       <div className="space-y-4">
-        <ImageUploadControl 
-          currentUrl={content.url} 
-          onUploadComplete={(url) => handleChange('url', url)} 
+        <label className="block text-xs font-bold text-chocolate/40">圖片設定</label>
+        <ImageUploadControl
+          currentUrl={content.url}
+          onUploadComplete={(url) => handleChange('url', url)}
         />
-        <textarea 
-          value={content.url}
+        <label className="block text-xs font-bold text-chocolate/40">圖片網址</label>
+        <input
+          value={content.url || ''}
           onChange={(e) => handleChange('url', e.target.value)}
-          rows={3}
           className="w-full p-4 bg-cream border-none rounded-xl text-sm outline-none focus:ring-2 ring-cat-blue/20"
-          placeholder="請貼上圖片網址"
         />
-        <p className="text-xs text-chocolate/40 italic">提示：您也可以在上方的欄位直接上傳圖片。上傳後會自動填入專屬網址。</p>
+        <label className="block text-xs font-bold text-chocolate/40">圖片說明（可留白）</label>
+        <input
+          value={content.caption || ''}
+          onChange={(e) => handleChange('caption', e.target.value)}
+          className="w-full p-4 bg-cream border-none rounded-xl text-sm outline-none focus:ring-2 ring-cat-blue/20"
+        />
+        <label className="block text-xs font-bold text-chocolate/40">圖片連結</label>
+        <input
+          value={content.link || ''}
+          onChange={(e) => handleChange('link', e.target.value)}
+          onBlur={(e) => {
+            const raw = e.target.value.trim();
+            if (raw) handleChange('link', normalizeLinkTarget(raw));
+          }}
+          className="w-full p-4 bg-cream border-none rounded-xl text-sm outline-none focus:ring-2 ring-cat-blue/20"
+          placeholder="輸入區段錨點或網址"
+        />
       </div>
     );
   }
@@ -1328,7 +1384,7 @@ function InspectorControls({ el, onUpdate }: { el: CardElement, onUpdate: (u: an
           placeholder="貼上 YouTube、Spotify 連結"
         />
         <label className="block text-xs font-bold text-chocolate/40">或貼 iframe 代碼</label>
-        <textarea 
+        <textarea
           value={content.html || ''}
           onChange={(e) => handleChange('html', e.target.value)}
           rows={5}
@@ -1364,91 +1420,7 @@ function InspectorControls({ el, onUpdate }: { el: CardElement, onUpdate: (u: an
   }
 
   if (type === 'gallery') {
-    const images = content.images || [];
-    const updateImages = (nextImages: Array<{ url: string; caption?: string; link?: string }>) => handleChange('images', nextImages);
-    return (
-      <div className="space-y-4">
-        <details className="eurek-details rounded-2xl border-3 border-chocolate/10 bg-white/60 overflow-hidden">
-          <summary className="cursor-pointer px-4 py-3 text-xs font-black text-chocolate/70">圖庫設定</summary>
-          <div className="eurek-details-body px-4 pb-4 space-y-3 border-t border-chocolate/10">
-            <label className="block text-xs font-bold text-chocolate/40">圖庫版型</label>
-            <select value={content.layout || 'grid'} onChange={(e) => handleChange('layout', e.target.value)} className="w-full p-4 bg-cream border-none rounded-xl text-sm outline-none">
-              <option value="grid">網格</option>
-              <option value="slideshow">幻燈片</option>
-            </select>
-            <label className="block text-xs font-bold text-chocolate/40">圖片呈現</label>
-            <select value={content.fill ? 'fill' : 'contain'} onChange={(e) => handleChange('fill', e.target.value === 'fill')} className="w-full p-4 bg-cream border-none rounded-xl text-sm outline-none">
-              <option value="fill">填滿裁切</option>
-              <option value="contain">完整顯示</option>
-            </select>
-          </div>
-        </details>
-
-        <label className="block text-xs font-bold text-chocolate/40">圖片清單</label>
-        <div className="space-y-2">
-          {images.map((img: any, index: number) => (
-            <details key={`gallery-${index}`} className="eurek-details rounded-2xl border-3 border-chocolate/10 bg-white/70 overflow-hidden">
-              <summary className="cursor-pointer list-none px-3 py-2 flex items-center justify-between gap-3">
-                <div className="text-xs font-black text-chocolate/70 truncate">圖片 {index + 1}</div>
-                <div className="text-[10px] font-bold text-chocolate/35">展開</div>
-              </summary>
-
-              <div className="eurek-details-body border-t border-chocolate/10">
-                <div className="relative aspect-square w-full bg-black/5">
-                  {img.url ? (
-                    <img src={img.url} alt={img.caption || `圖片 ${index + 1}`} className="absolute inset-0 h-full w-full object-cover" />
-                  ) : (
-                    <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-chocolate/35">尚未設定圖片</div>
-                  )}
-                </div>
-
-                <div className="p-3 space-y-2">
-                  <GalleryImageUpload
-                    onUploadComplete={(url) => {
-                      const next = [...images];
-                      next[index] = { ...next[index], url };
-                      updateImages(next);
-                    }}
-                  />
-                  <input value={img.url || ''} onChange={(e) => {
-                    const next = [...images];
-                    next[index] = { ...next[index], url: e.target.value };
-                    updateImages(next);
-                  }} className="w-full p-3 bg-cream rounded-xl text-xs outline-none" placeholder="圖片網址" />
-                  <input value={img.caption || ''} onChange={(e) => {
-                    const next = [...images];
-                    next[index] = { ...next[index], caption: e.target.value };
-                    updateImages(next);
-                  }} className="w-full p-3 bg-cream rounded-xl text-xs outline-none" placeholder="圖片說明（可留白）" />
-                  <input value={img.link || ''} onChange={(e) => {
-                    const next = [...images];
-                    next[index] = { ...next[index], link: e.target.value };
-                    updateImages(next);
-                  }} onBlur={(e) => {
-                    const raw = e.target.value.trim();
-                    if (!raw) return;
-                    const next = [...images];
-                    next[index] = { ...next[index], link: normalizeLinkTarget(raw) };
-                    updateImages(next);
-                  }} className="w-full p-3 bg-cream rounded-xl text-xs outline-none" placeholder="點擊連結（支援 #區段 / 自動補 https://）" />
-                  <button
-                    type="button"
-                    title="刪除此圖"
-                    onClick={() => updateImages(images.filter((_: any, i: number) => i !== index))}
-                    className="w-full h-10 inline-flex items-center justify-center gap-2 bg-red-50 text-red-500 rounded-xl text-xs font-black"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              </div>
-            </details>
-          ))}
-          <button onClick={() => updateImages([...images, { url: '', caption: '', link: '' }])} className="w-full p-3 rounded-xl text-xs font-bold bg-white border-3 border-chocolate/10 hover:bg-chocolate hover:text-white transition-colors">
-            新增圖片
-          </button>
-        </div>
-      </div>
-    );
+    return <GalleryInspector content={content} handleChange={handleChange} />;
   }
 
   if (type === 'countdown') {
@@ -1485,16 +1457,24 @@ function InspectorControls({ el, onUpdate }: { el: CardElement, onUpdate: (u: an
   }
 
   if (type === 'anon_box') {
+    const isReplyEnabled = cardData?.interactions?.responsesEnabled !== false;
     return (
       <div className="space-y-4">
+        <div className="p-4 bg-cream rounded-xl flex justify-between items-center text-sm">
+          <span className="font-bold text-chocolate/60">留言板狀態</span>
+          <span className={cn("font-black px-3 py-1 rounded-full", isReplyEnabled ? "text-cat-blue bg-cat-blue/10" : "text-chocolate/40 bg-chocolate/10")}>
+            {isReplyEnabled ? '收件中' : '已關閉'}
+          </span>
+        </div>
+        <p className="text-[10px] text-chocolate/40 italic">（如需更改狀態，請前往「回應管理」面板進行設定）</p>
         <label className="block text-xs font-bold text-chocolate/40">標題</label>
-        <input 
+        <input
           value={content.title}
           onChange={(e) => handleChange('title', e.target.value)}
           className="w-full p-4 bg-cream border-none rounded-xl text-sm outline-none focus:ring-2 ring-cat-blue/20"
         />
         <label className="block text-xs font-bold text-chocolate/40">輸入框提示文字</label>
-        <input 
+        <input
           value={content.placeholder}
           onChange={(e) => handleChange('placeholder', e.target.value)}
           className="w-full p-4 bg-cream border-none rounded-xl text-sm outline-none focus:ring-2 ring-cat-blue/20"
@@ -1540,112 +1520,131 @@ function InspectorControls({ el, onUpdate }: { el: CardElement, onUpdate: (u: an
   }
 
   if (type === 'dropdown') {
-    const items = content.items || [];
-    const updateItems = (nextItems: Array<{ label: string; url: string }>) => handleChange('items', nextItems);
-    return (
-      <div className="space-y-4">
-        <label className="block text-xs font-bold text-chocolate/40">選單標題</label>
-        <input
-          value={content.label || ''}
-          onChange={(e) => handleChange('label', e.target.value)}
-          className="w-full p-4 bg-cream border-none rounded-xl text-sm outline-none focus:ring-2 ring-cat-blue/20"
-          placeholder="例如：快速導覽"
-        />
-        <label className="block text-xs font-bold text-chocolate/40">選項列表</label>
-        <Reorder.Group axis="y" values={items} onReorder={updateItems} className="space-y-2">
-          {items.map((item: { label: string; url: string }, index: number) => (
-            <Reorder.Item key={`dropdown-item-${index}`} value={item} className="flex items-center gap-2">
-              <div className="w-9 h-9 shrink-0 inline-flex items-center justify-center rounded-xl bg-white border-3 border-chocolate/10 text-chocolate/40 cursor-move">
-                <GripVertical size={16} />
-              </div>
-              <input
-                value={item.label}
-                onChange={(e) => {
-                  const next = [...items];
-                  next[index] = { ...next[index], label: e.target.value };
-                  updateItems(next);
-                }}
-                className="min-w-0 flex-1 p-3 bg-cream rounded-xl text-xs outline-none"
-                placeholder="文字"
-              />
-              <input
-                value={item.url}
-                onChange={(e) => {
-                  const next = [...items];
-                  next[index] = { ...next[index], url: e.target.value };
-                  updateItems(next);
-                }}
-                className="min-w-0 flex-1 p-3 bg-cream rounded-xl text-xs outline-none"
-                placeholder="連結"
-              />
-              <button
-                onClick={() => updateItems(items.filter((_: any, i: number) => i !== index))}
-                className="w-9 h-9 shrink-0 inline-flex items-center justify-center bg-red-50 text-red-500 rounded-xl text-xs font-bold"
-                title="刪除選項"
-              >
-                <Trash2 size={15} />
-              </button>
-            </Reorder.Item>
-          ))}
-        </Reorder.Group>
-          <button
-            onClick={() => updateItems([...items, { label: `項目 ${items.length + 1}`, url: '#' }])}
-            className="w-full p-3 rounded-xl text-xs font-bold bg-white border-3 border-chocolate/10 hover:bg-chocolate hover:text-white transition-colors"
-          >
-            新增選項
-          </button>
-      </div>
-    );
+    return <DropdownInspector content={content} handleChange={handleChange} />;
   }
 
   if (type === 'tags') {
-    const items = content.items || [];
-    const updateItems = (nextItems: Array<{ text: string; icon?: string }>) => handleChange('items', nextItems);
-    return (
-      <div className="space-y-4">
-        <label className="block text-xs font-bold text-chocolate/40">標籤列表</label>
-        <div className="space-y-2">
-          {items.map((item: { text: string; icon?: string }, index: number) => (
-            <div key={`tag-item-${index}`} className="flex items-center gap-2">
-              <EmojiPickerControl 
-                value={item.icon || '✨'} 
-                onChange={(emoji) => {
-                  const next = [...items];
-                  next[index] = { ...next[index], icon: emoji };
-                  updateItems(next);
-                }} 
-              />
-              <input
-                value={item.text}
-                onChange={(e) => {
-                  const next = [...items];
-                  next[index] = { ...next[index], text: e.target.value };
-                  updateItems(next);
-                }}
-                className="min-w-0 flex-1 p-4 bg-cream rounded-xl text-xs outline-none"
-                placeholder="標籤文字"
-              />
-              <button
-                onClick={() => updateItems(items.filter((_: any, i: number) => i !== index))}
-                className="w-10 h-10 shrink-0 inline-flex items-center justify-center bg-red-50 text-red-500 rounded-xl text-xs font-bold"
-                title="刪除標籤"
-              >
-                <Trash2 size={17} />
-              </button>
-            </div>
-          ))}
-          <button
-            onClick={() => updateItems([...items, { text: `標籤 ${items.length + 1}`, icon: '✨' }])}
-            className="w-full p-3 rounded-xl text-xs font-bold bg-white border-3 border-chocolate/10 hover:bg-chocolate hover:text-white transition-colors"
-          >
-            新增標籤
-          </button>
-        </div>
-      </div>
-    );
+    return <TagsInspector content={content} handleChange={handleChange} />;
   }
 
   return <div className="text-xs text-chocolate/30 py-8 italic text-center">此組件暫無屬性面板。</div>;
+}
+
+type DropdownItem = { label: string; url: string };
+function DropdownInspector({ content, handleChange }: { content: any; handleChange: (key: string, value: any) => void }) {
+  const items: DropdownItem[] = content.items || [];
+  const keyMapRef = useRef<WeakMap<DropdownItem, string>>(new WeakMap());
+  const counterRef = useRef(0);
+  const getKey = (item: DropdownItem) => {
+    if (!keyMapRef.current.has(item)) keyMapRef.current.set(item, `dd_${++counterRef.current}`);
+    return keyMapRef.current.get(item)!;
+  };
+  const updateItems = (next: DropdownItem[]) => handleChange('items', next);
+  return (
+    <div className="space-y-4">
+      <label className="block text-xs font-bold text-chocolate/40">選單標題</label>
+      <input
+        value={content.label || ''}
+        onChange={(e) => handleChange('label', e.target.value)}
+        className="w-full p-4 bg-cream border-none rounded-xl text-sm outline-none focus:ring-2 ring-cat-blue/20"
+        placeholder="例如：快速導覽"
+      />
+      <label className="block text-xs font-bold text-chocolate/40">選項列表</label>
+      <Reorder.Group axis="y" values={items} onReorder={updateItems} className="space-y-2">
+        {items.map((item, index) => (
+          <Reorder.Item key={getKey(item)} value={item} className="flex items-center gap-2" as="div">
+            <div className="w-9 h-9 shrink-0 inline-flex items-center justify-center rounded-xl bg-white border-3 border-chocolate/10 text-chocolate/40 cursor-move touch-none">
+              <GripVertical size={16} />
+            </div>
+            <input
+              value={item.label}
+              onChange={(e) => {
+                const next = items.map((it, i) => i === index ? { ...it, label: e.target.value } : it);
+                updateItems(next);
+              }}
+              className="min-w-0 flex-1 p-3 bg-cream rounded-xl text-xs outline-none"
+              placeholder="文字"
+            />
+            <input
+              value={item.url}
+              onChange={(e) => {
+                const next = items.map((it, i) => i === index ? { ...it, url: e.target.value } : it);
+                updateItems(next);
+              }}
+              className="min-w-0 flex-1 p-3 bg-cream rounded-xl text-xs outline-none"
+              placeholder="連結"
+            />
+            <button
+              onClick={() => updateItems(items.filter((_, i) => i !== index))}
+              className="w-9 h-9 shrink-0 inline-flex items-center justify-center bg-red-50 text-red-500 rounded-xl text-xs font-bold"
+            >
+              <Trash2 size={15} />
+            </button>
+          </Reorder.Item>
+        ))}
+      </Reorder.Group>
+      <button
+        onClick={() => updateItems([...items, { label: `項目 ${items.length + 1}`, url: '#' }])}
+        className="w-full p-3 rounded-xl text-xs font-bold bg-white border-3 border-chocolate/10 hover:bg-chocolate hover:text-white transition-colors"
+      >
+        新增選項
+      </button>
+    </div>
+  );
+}
+
+type TagItem = { text: string; icon?: string };
+function TagsInspector({ content, handleChange }: { content: any; handleChange: (key: string, value: any) => void }) {
+  const items: TagItem[] = content.items || [];
+  const keyMapRef = useRef<WeakMap<TagItem, string>>(new WeakMap());
+  const counterRef = useRef(0);
+  const getKey = (item: TagItem) => {
+    if (!keyMapRef.current.has(item)) keyMapRef.current.set(item, `tag_${++counterRef.current}`);
+    return keyMapRef.current.get(item)!;
+  };
+  const updateItems = (next: TagItem[]) => handleChange('items', next);
+  return (
+    <div className="space-y-4">
+      <label className="block text-xs font-bold text-chocolate/40">標籤列表</label>
+      <Reorder.Group axis="y" values={items} onReorder={updateItems} className="space-y-2">
+        {items.map((item, index) => (
+          <Reorder.Item key={getKey(item)} value={item} className="flex items-center gap-2" as="div">
+            <div className="w-10 h-10 shrink-0 inline-flex items-center justify-center rounded-xl bg-white border-3 border-chocolate/10 text-chocolate/40 cursor-move touch-none">
+              <GripVertical size={16} />
+            </div>
+            <EmojiPickerControl
+              value={item.icon || '✨'}
+              onChange={(emoji) => {
+                const next = items.map((it, i) => i === index ? { ...it, icon: emoji } : it);
+                updateItems(next);
+              }}
+            />
+            <input
+              value={item.text}
+              onChange={(e) => {
+                const next = items.map((it, i) => i === index ? { ...it, text: e.target.value } : it);
+                updateItems(next);
+              }}
+              className="min-w-0 flex-1 p-3 bg-cream rounded-xl text-xs outline-none"
+              placeholder="標籤文字"
+            />
+            <button
+              onClick={() => updateItems(items.filter((_, i) => i !== index))}
+              className="w-10 h-10 shrink-0 inline-flex items-center justify-center bg-red-50 text-red-500 rounded-xl text-xs font-bold"
+            >
+              <Trash2 size={17} />
+            </button>
+          </Reorder.Item>
+        ))}
+      </Reorder.Group>
+      <button
+        onClick={() => updateItems([...items, { text: `標籤 ${items.length + 1}`, icon: '✨' }])}
+        className="w-full p-3 rounded-xl text-xs font-bold bg-white border-3 border-chocolate/10 hover:bg-chocolate hover:text-white transition-colors"
+      >
+        新增標籤
+      </button>
+    </div>
+  );
 }
 
 function SortableElementItem({
@@ -1676,13 +1675,26 @@ function SortableElementItem({
     event.stopPropagation();
     clearDragTimer();
     const nativeEvent = event.nativeEvent;
-    if (isTouchDevice) {
-      dragTimerRef.current = window.setTimeout(() => {
-        dragControls.start(nativeEvent);
-      }, 280);
-      return;
-    }
     dragControls.start(nativeEvent);
+  };
+
+  const onDragPointerDown = (event: React.PointerEvent<HTMLElement>) => {
+    if (!isTouchDevice) return;
+    const nativeEvent = event.nativeEvent;
+    dragTimerRef.current = window.setTimeout(() => {
+      setSelectedId(el.id);
+      dragControls.start(nativeEvent);
+    }, 280);
+  };
+
+  const handleDrag = (event: MouseEvent | TouchEvent | PointerEvent) => {
+    const clientY = 'touches' in event ? event.touches[0].clientY : (event as MouseEvent).clientY;
+    const threshold = 100;
+    if (clientY < threshold) {
+      window.scrollBy({ top: -15, behavior: 'auto' });
+    } else if (clientY > window.innerHeight - threshold) {
+      window.scrollBy({ top: 15, behavior: 'auto' });
+    }
   };
 
   return (
@@ -1693,13 +1705,18 @@ function SortableElementItem({
       dragListener={false}
       whileDrag={{ scale: 1, zIndex: 40 }}
       onDragStart={() => setSelectedId(el.id)}
+      onDrag={handleDrag}
       onClick={(e) => {
         e.stopPropagation();
         setSelectedId(el.id);
       }}
+      onPointerDown={onDragPointerDown}
+      onPointerUp={clearDragTimer}
+      onPointerCancel={clearDragTimer}
+      onPointerLeave={clearDragTimer}
       className={cn(
-        'relative cursor-pointer group',
-        selectedId === el.id ? 'ring-4 ring-cat-blue/50 rounded-[2.2rem]' : ''
+        'relative cursor-pointer group rounded-[2.2rem]',
+        selectedId === el.id ? 'ring-4 ring-cat-blue/50' : ''
       )}
       style={{ touchAction: isTouchDevice ? 'pan-y' : 'none' }}
     >
@@ -1815,6 +1832,203 @@ function EmojiPickerControl({ value, onChange }: { value: string; onChange: (emo
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function GalleryInspector({ content, handleChange }: { content: any; handleChange: (key: string, value: any) => void }) {
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
+  const images: any[] = Array.isArray(content.images) ? content.images : [];
+  const keyMapRef = useRef<WeakMap<object, string>>(new WeakMap());
+  const counterRef = useRef(0);
+  const getKey = (img: object) => {
+    if (!keyMapRef.current.has(img)) keyMapRef.current.set(img, `gi_${++counterRef.current}`);
+    return keyMapRef.current.get(img)!;
+  };
+  const updateImages = (next: any[]) => handleChange('images', next);
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-2xl border-3 border-chocolate/10 bg-white/70 overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setSettingsOpen(!settingsOpen)}
+          className="w-full px-4 py-3 flex items-center justify-between bg-transparent"
+        >
+          <div className="flex items-center gap-2">
+            <Palette size={16} className="text-chocolate/50" />
+            <span className="text-xs font-black text-chocolate/70">圖庫顯示設定</span>
+          </div>
+          <ChevronDown size={14} className={cn('transition-transform text-chocolate/50', settingsOpen && 'rotate-180')} />
+        </button>
+        <AnimatePresence initial={false}>
+          {settingsOpen && (
+            <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden">
+              <div className="px-4 pb-4 space-y-3 border-t border-chocolate/10">
+                <label className="block text-xs font-bold text-chocolate/40">圖庫版型</label>
+                <select value={content.layout || 'grid'} onChange={(e) => handleChange('layout', e.target.value)} className="w-full p-4 bg-cream border-none rounded-xl text-sm outline-none">
+                  <option value="grid">網格</option>
+                  <option value="slideshow">幻燈片</option>
+                </select>
+                <label className="block text-xs font-bold text-chocolate/40">圖片呈現</label>
+                <select value={content.fill ? 'fill' : 'contain'} onChange={(e) => handleChange('fill', e.target.value === 'fill')} className="w-full p-4 bg-cream border-none rounded-xl text-sm outline-none">
+                  <option value="fill">填滿裁切</option>
+                  <option value="contain">完整顯示</option>
+                </select>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      <label className="block text-xs font-bold text-chocolate/40">圖片清單</label>
+      <Reorder.Group axis="y" values={images} onReorder={updateImages} className="space-y-2">
+        {images.map((img, index) => {
+          const imgKey = getKey(img);
+          const isOpen = expandedKey === imgKey;
+          return (
+            <Reorder.Item key={imgKey} value={img} className="rounded-2xl border-3 border-chocolate/10 bg-white/70 overflow-hidden" as="div">
+              <div className="flex items-center">
+                <div className="w-10 h-10 shrink-0 inline-flex items-center justify-center text-chocolate/40 cursor-move touch-none border-r border-chocolate/10">
+                  <GripVertical size={16} />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setExpandedKey(isOpen ? null : imgKey)}
+                  className="w-full px-3 py-3 flex items-center justify-between gap-3 bg-transparent text-left"
+                >
+                  <div className="text-xs font-black text-chocolate/70 truncate">{img.caption || `圖片 ${index + 1}`}</div>
+                  <ChevronDown size={14} className={cn('transition-transform text-chocolate/50 shrink-0', isOpen && 'rotate-180')} />
+                </button>
+              </div>
+
+              <AnimatePresence initial={false}>
+                {isOpen && (
+                  <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden">
+                    <div className="border-t border-chocolate/10">
+                      <div className="relative aspect-square w-full bg-black/5">
+                        {img.url ? (
+                          <img src={img.url} alt={img.caption || `圖片 ${index + 1}`} className="absolute inset-0 h-full w-full object-cover" />
+                        ) : (
+                          <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-chocolate/35">尚未設定圖片</div>
+                        )}
+                      </div>
+
+                      <div className="p-3 space-y-2">
+                        <GalleryImageUpload
+                          onUploadComplete={(url) => {
+                            const next = images.map((it, i) => i === index ? { ...it, url } : it);
+                            updateImages(next);
+                          }}
+                        />
+                        <label className="block text-xs font-bold text-chocolate/40">圖片網址</label>
+                        <input value={img.url || ''} onChange={(e) => {
+                          const next = images.map((it, i) => i === index ? { ...it, url: e.target.value } : it);
+                          updateImages(next);
+                        }} className="w-full p-3 bg-cream rounded-xl text-xs outline-none" />
+
+                        <label className="block text-xs font-bold text-chocolate/40">圖片說明（可留白）</label>
+                        <input value={img.caption || ''} onChange={(e) => {
+                          const next = images.map((it, i) => i === index ? { ...it, caption: e.target.value } : it);
+                          updateImages(next);
+                        }} className="w-full p-3 bg-cream rounded-xl text-xs outline-none" />
+
+                        <label className="block text-xs font-bold text-chocolate/40">圖片連結</label>
+                        <input value={img.link || ''} onChange={(e) => {
+                          const next = images.map((it, i) => i === index ? { ...it, link: e.target.value } : it);
+                          updateImages(next);
+                        }} onBlur={(e) => {
+                          const raw = e.target.value.trim();
+                          if (!raw) return;
+                          const next = images.map((it, i) => i === index ? { ...it, link: normalizeLinkTarget(raw) } : it);
+                          updateImages(next);
+                        }} className="w-full p-3 bg-cream rounded-xl text-xs outline-none" placeholder="輸入區段錨點或網址" />
+                        <button
+                          type="button"
+                          title="刪除此圖"
+                          onClick={() => {
+                            updateImages(images.filter((_: any, i: number) => i !== index));
+                            setExpandedKey(null);
+                          }}
+                          className="w-full h-10 inline-flex items-center justify-center gap-2 bg-red-50 text-red-500 rounded-xl text-xs font-black"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </Reorder.Item>
+          );
+        })}
+      </Reorder.Group>
+      <button onClick={() => updateImages([...images, { url: '', caption: '', link: '' }])} className="w-full p-3 rounded-xl text-xs font-bold bg-white border-3 border-chocolate/10 hover:bg-chocolate hover:text-white transition-colors">
+        新增圖片
+      </button>
+    </div>
+  );
+}
+
+
+function ElementActionsMenu({ el, onDuplicate, onDelete }: { el: CardElement; onDuplicate: () => void; onDelete: () => void }) {
+  const [open, setOpen] = useState(false);
+  const handleCopyId = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(el.id);
+      alert('已複製元件 ID: ' + el.id);
+    } catch (err) {
+      alert('複製失敗，請手動複製: ' + el.id);
+    }
+    setOpen(false);
+  };
+
+  // 注意：需要確保最上方 import 了 MoreHorizontal, Copy
+  return (
+    <div className="relative">
+      <button
+        onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
+        className="p-3 bg-white border-3 border-chocolate/10 text-chocolate hover:bg-cat-blue hover:border-cat-blue hover:text-white rounded-full transition-all hover:scale-110 active:scale-95 shadow-sm"
+        title="元件操作"
+      >
+        {/* 如果報錯說找不到 MoreHorizontal，請在檔案最上方 lucide-react 的引入處加上它 */}
+        <Plus size={16} className={cn("transition-transform", open && "rotate-45")} />
+      </button>
+      <AnimatePresence>
+        {open && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setOpen(false); }} />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: -10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: -10 }}
+              className="absolute right-0 top-12 w-40 bg-white rounded-2xl border-3 border-chocolate/10 shadow-lg overflow-hidden z-50 py-2"
+            >
+              <button
+                onClick={(e) => { e.stopPropagation(); onDuplicate(); setOpen(false); }}
+                className="w-full px-4 py-3 text-sm font-bold text-chocolate hover:bg-cream flex items-center gap-3 transition-colors text-left"
+              >
+                <Plus size={16} /> 複製元件
+              </button>
+              <button
+                onClick={handleCopyId}
+                className="w-full px-4 py-3 text-sm font-bold text-chocolate hover:bg-cream flex items-center gap-3 transition-colors text-left"
+              >
+                <Hash size={16} /> 複製 ID
+              </button>
+              <div className="h-px bg-chocolate/5 my-1" />
+              <button
+                onClick={(e) => { e.stopPropagation(); onDelete(); setOpen(false); }}
+                className="w-full px-4 py-3 text-sm font-bold text-red-500 hover:bg-red-50 flex items-center gap-3 transition-colors text-left"
+              >
+                <Trash2 size={16} /> 刪除元件
+              </button>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -35,8 +35,6 @@ export function toElementStyle(style?: ElementVisualStyle): CSSProperties {
 
   if (style.backgroundColor) {
     next.backgroundColor = withAlpha(style.backgroundColor, style.backgroundOpacity ?? 1);
-  } else {
-    next.backgroundColor = 'var(--global-background-color, #F5F5DC)'; // 默認背景色
   }
 
   if (style.borderColor) {

@@ -123,9 +123,6 @@ export function MoodCounter({
           <div className="text-lg truncate">{count} {content?.title || '個人都說讚'}</div>
         </div>
       </div>
-      <div className="opacity-0 group-hover:opacity-100 transition-opacity translate-x-4 group-hover:translate-x-0">
-        <Heart size={18} />
-      </div>
     </>
   );
 

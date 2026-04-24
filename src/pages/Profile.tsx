@@ -40,7 +40,7 @@ export default function Profile() {
         document.getElementsByTagName('head')[0].appendChild(link);
       }
       link.href = avatarUrl;
-      
+
       // Set document title
       document.title = `${data.profile?.displayName || username} | Eurekard`;
     }
@@ -53,7 +53,7 @@ export default function Profile() {
         // Step 1: Lookup UID from username
         const usernameRef = doc(db, 'usernames', username);
         const usernameSnap = await getDoc(usernameRef);
-        
+
         if (!usernameSnap.exists()) {
           setError(true);
           setLoading(false);
@@ -61,11 +61,11 @@ export default function Profile() {
         }
 
         const uid = usernameSnap.data().uid;
-        
+
         // Step 2: Fetch Card Data
         const cardRef = doc(db, 'cards', uid);
         const cardSnap = await getDoc(cardRef);
-        
+
         if (cardSnap.exists()) {
           setData(cardSnap.data() as CardData);
           // Set Favicon link dynamically (optional simplification here)
@@ -118,13 +118,70 @@ export default function Profile() {
   }, [data?.uid]);
 
   useEffect(() => {
-    const syncHash = () => {
-      setActiveSectionHash((window.location.hash || '').replace(/^#/, ''));
-    };
-    syncHash();
-    window.addEventListener('hashchange', syncHash);
-    return () => window.removeEventListener('hashchange', syncHash);
+    // Inject global background & scrollbar styles into <head>
+    const styleEl = document.createElement('style');
+    styleEl.id = 'eurekard-profile-style';
+    document.head.appendChild(styleEl);
+    return () => { document.head.removeChild(styleEl); };
   }, []);
+
+  useEffect(() => {
+    const styleEl = document.getElementById('eurekard-profile-style') as HTMLStyleElement | null;
+    if (!styleEl) return;
+    // Compute directly from data to avoid referencing globalStyles which is declared after early returns
+    const styles = data?.published_content?.styles;
+    const bg = styles?.backgroundColor || '#F5F5DC';
+    const thumb = styles?.componentBorderColor || '#3D2B1F';
+    styleEl.textContent = [
+      `html, body { background-color: ${bg} !important; }`,
+      // Override the global index.css scrollbar-color CSS variable
+      `:root { --global-scrollbar-color: ${thumb} !important; }`,
+      `::-webkit-scrollbar { width: 6px; height: 6px; }`,
+      `::-webkit-scrollbar-track { background: transparent; }`,
+      `::-webkit-scrollbar-thumb { background-color: ${thumb} !important; border-radius: 99px; }`,
+      `* { scrollbar-color: ${thumb} transparent !important; }`,
+    ].join('\n');
+  }, [data?.published_content?.styles?.backgroundColor, data?.published_content?.styles?.componentBorderColor]);
+
+  useEffect(() => {
+    const allElements = data?.published_content?.elements || [];
+
+    const handleHashChange = () => {
+      const raw = (window.location.hash || '').replace(/^#/, '');
+      if (!raw) return;
+
+      // If the hash matches an element ID, scroll to it without switching sections
+      if (/^el_/.test(raw)) {
+        const target = document.getElementById(raw);
+        if (target) {
+          target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } else {
+          // Element might be in a different section – find which section it belongs to
+          const { sections } = splitElementsBySection(allElements);
+          for (const section of sections) {
+            if (section.elements.some((el: any) => el.id === raw)) {
+              setActiveSectionHash(section.hash);
+              // After section renders, scroll to element
+              setTimeout(() => {
+                document.getElementById(raw)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }, 120);
+              return;
+            }
+          }
+        }
+        return;
+      }
+
+      // Otherwise treat as section hash
+      setActiveSectionHash(raw);
+    };
+
+    // Sync on mount
+    handleHashChange();
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data?.published_content?.elements]);
 
   const handleTrackClick = async (targetId?: string) => {
     if (!data?.uid) return;
@@ -153,6 +210,45 @@ export default function Profile() {
     } catch (err) {
       alert('發送失敗，請稍後再試');
     }
+  };
+
+  /**
+   * Navigate to a hash target.
+   * - el_* hashes: scroll to element directly without touching the URL hash.
+   *   If the element isn't rendered yet (different section), switch section first.
+   * - Section hashes: update activeSectionHash and the URL hash.
+   */
+  const navigateToHash = (hash: string) => {
+    const raw = hash.replace(/^#/, '');
+    if (!raw) return;
+
+    if (/^el_/.test(raw)) {
+      const target = document.getElementById(raw);
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else {
+        // Element is in a different section - switch section then scroll
+        const allElements = data?.published_content?.elements || [];
+        const { sections, headerElements, footerElements } = splitElementsBySection(allElements);
+        // Check header / footer first (always rendered)
+        const inFixed = [...headerElements, ...footerElements].some((el: any) => el.id === raw);
+        if (inFixed) return; // should have been found by getElementById above
+        for (const section of sections) {
+          if (section.elements.some((el: any) => el.id === raw)) {
+            setActiveSectionHash(section.hash);
+            setTimeout(() => {
+              document.getElementById(raw)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 140);
+            return;
+          }
+        }
+      }
+      return;
+    }
+
+    // Section anchor
+    setActiveSectionHash(raw);
+    window.location.hash = raw;
   };
 
   if (loading) {
@@ -196,19 +292,19 @@ export default function Profile() {
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-chocolate/5 rounded-full blur-[120px]" />
       </div>
 
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-[480px] relative z-10"
       >
         {/* Profile Header */}
         <div className="text-center mb-12">
-          <motion.div 
+          <motion.div
             whileHover={{ scale: 1.05 }}
             className="w-32 h-32 rounded-[4rem] mx-auto mb-6 p-1.5 relative overflow-hidden"
           >
-            <img 
-              src={data.profile?.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.uid}`} 
+            <img
+              src={data.profile?.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.uid}`}
               alt={data.profile?.displayName || username}
               className="w-full h-full rounded-[2.8rem] object-cover"
             />
@@ -229,20 +325,21 @@ export default function Profile() {
           )}
 
           {headerElements.map((el) => (
-            <RenderElement
-              key={el.id}
-              el={el}
-              cardId={data.uid}
-              onSendAnon={() => handleSendAnon(data.uid)}
-              anonMessage={anonMessage}
-              setAnonMessage={setAnonMessage}
-              sent={sent}
-              isReplyEnabled={data.interactions?.responsesEnabled !== false}
-              publicReplies={publicReplies}
-              onTrackClick={handleTrackClick}
-              globalStyles={globalStyles}
-              onHashNavigate={(hash) => setActiveSectionHash(hash.replace(/^#/, ''))}
-            />
+            <div key={el.id} id={el.id}>
+              <RenderElement
+                el={el}
+                cardId={data.uid}
+                onSendAnon={() => handleSendAnon(data.uid)}
+                anonMessage={anonMessage}
+                setAnonMessage={setAnonMessage}
+                sent={sent}
+                isReplyEnabled={data.interactions?.responsesEnabled !== false}
+                publicReplies={publicReplies}
+                onTrackClick={handleTrackClick}
+                globalStyles={globalStyles}
+                onHashNavigate={navigateToHash}
+              />
+            </div>
           ))}
 
           <AnimatePresence mode="wait" initial={false}>
@@ -255,39 +352,41 @@ export default function Profile() {
               className="space-y-6"
             >
               {sectionElements.map((el) => (
-                <RenderElement
-                  key={el.id}
-                  el={el}
-                  cardId={data.uid}
-                  onSendAnon={() => handleSendAnon(data.uid)}
-                  anonMessage={anonMessage}
-                  setAnonMessage={setAnonMessage}
-                  sent={sent}
-                  isReplyEnabled={data.interactions?.responsesEnabled !== false}
-                  publicReplies={publicReplies}
-                  onTrackClick={handleTrackClick}
-                  globalStyles={globalStyles}
-                  onHashNavigate={(hash) => setActiveSectionHash(hash.replace(/^#/, ''))}
-                />
+                <div key={el.id} id={el.id}>
+                  <RenderElement
+                    el={el}
+                    cardId={data.uid}
+                    onSendAnon={() => handleSendAnon(data.uid)}
+                    anonMessage={anonMessage}
+                    setAnonMessage={setAnonMessage}
+                    sent={sent}
+                    isReplyEnabled={data.interactions?.responsesEnabled !== false}
+                    publicReplies={publicReplies}
+                    onTrackClick={handleTrackClick}
+                    globalStyles={globalStyles}
+                    onHashNavigate={navigateToHash}
+                  />
+                </div>
               ))}
             </motion.div>
           </AnimatePresence>
 
           {footerElements.map((el) => (
-            <RenderElement
-              key={el.id}
-              el={el}
-              cardId={data.uid}
-              onSendAnon={() => handleSendAnon(data.uid)}
-              anonMessage={anonMessage}
-              setAnonMessage={setAnonMessage}
-              sent={sent}
-              isReplyEnabled={data.interactions?.responsesEnabled !== false}
-              publicReplies={publicReplies}
-              onTrackClick={handleTrackClick}
-              globalStyles={globalStyles}
-              onHashNavigate={(hash) => setActiveSectionHash(hash.replace(/^#/, ''))}
-            />
+            <div key={el.id} id={el.id}>
+              <RenderElement
+                el={el}
+                cardId={data.uid}
+                onSendAnon={() => handleSendAnon(data.uid)}
+                anonMessage={anonMessage}
+                setAnonMessage={setAnonMessage}
+                sent={sent}
+                isReplyEnabled={data.interactions?.responsesEnabled !== false}
+                publicReplies={publicReplies}
+                onTrackClick={handleTrackClick}
+                globalStyles={globalStyles}
+                onHashNavigate={navigateToHash}
+              />
+            </div>
           ))}
         </div>
 
@@ -330,13 +429,19 @@ function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, se
   if (type === 'text') {
     const alignClass = content.align === 'left' ? 'text-left' : content.align === 'right' ? 'text-right' : 'text-center';
     const html = DOMPurify.sanitize(marked.parse(String(content.text || '')) as string);
+    const textStyle = {
+      ...baseComponentStyle,
+      ...visualStyle,
+      backgroundColor: visualStyle.backgroundColor || globalStyles?.componentBackgroundColor,
+      color: globalStyles?.textColor,
+    };
     return (
       <div
-        style={{ color: globalStyles?.textColor }}
+        style={textStyle}
         className={cn(
-          "font-bold leading-tight mx-auto px-4",
+          "font-bold leading-tight mx-auto p-5 border-3 rounded-[2rem] w-full",
           alignClass,
-          content.size === '6xl' ? 'text-4xl md:text-5xl font-black mb-4' : 'text-lg opacity-80'
+          content.size === '6xl' ? 'text-4xl md:text-5xl font-black' : 'text-lg'
         )}
       >
         <div
@@ -358,7 +463,7 @@ function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, se
       color: globalStyles?.textColor,
     };
     return (
-      <motion.a 
+      <motion.a
         whileHover={{ scale: 1.02 }}
         whileTap={{ scale: 0.98 }}
         href={url}
@@ -366,13 +471,7 @@ function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, se
           void onTrackClick(el.id);
           if (hashLink) {
             event.preventDefault();
-            const nextHash = url.replace(/^#/, '');
-            if (url === '#') {
-              window.history.pushState(null, '', `${window.location.pathname}#`);
-            } else {
-              window.location.hash = nextHash;
-            }
-            onHashNavigate(`#${nextHash}`);
+            onHashNavigate(url);
           }
         }}
         target={hashLink ? undefined : '_blank'}
@@ -381,13 +480,10 @@ function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, se
         className="w-full p-5 border-3 rounded-[2rem] font-bold flex items-center justify-between group"
       >
         <div className="flex items-center gap-4">
-          <div style={{ color: globalStyles?.textColor }} className="w-10 h-10 rounded-2xl flex items-center justify-center transition-colors">
-            <ExternalLink size={18} />
+          <div className="w-10 h-10 rounded-2xl flex items-center justify-center text-2xl transition-colors">
+            {content.emoji || '🔗'}
           </div>
           <span className="text-lg">{content.label}</span>
-        </div>
-        <div className="opacity-0 group-hover:opacity-100 transition-opacity translate-x-4 group-hover:translate-x-0">
-          <Send size={18} />
         </div>
       </motion.a>
     );
@@ -405,7 +501,7 @@ function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, se
         <div className="absolute -top-10 -right-10 opacity-10 rotate-12 transition-transform duration-1000 group-hover:scale-150">
           <MessageSquare size={120} />
         </div>
-        
+
         <div className="flex items-center gap-3 mb-2 relative z-10">
           <div className="w-8 h-8 bg-white/30 rounded-xl flex items-center justify-center">
             <Heart size={16} />
@@ -414,14 +510,14 @@ function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, se
         </div>
 
         <div className="relative z-10 space-y-4">
-          <textarea 
+          <textarea
             placeholder={content.placeholder || "在此輸入想說的話..."}
             value={anonMessage}
             onChange={(e) => setAnonMessage(e.target.value)}
             rows={3}
             className="w-full bg-white/30 border-3 border-white/50 rounded-[2rem] p-5 outline-none focus:ring-4 ring-white/20 placeholder:text-current/40 text-current resize-none"
           />
-          <button 
+          <button
             onClick={onSendAnon}
             disabled={sent || !anonMessage.trim()}
             style={{ backgroundColor: globalStyles?.componentBorderColor, color: globalStyles?.componentBackgroundColor }}
@@ -454,7 +550,52 @@ function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, se
   }
 
   if (type === 'image') {
-    return <img src={content.url} style={{ borderColor: globalStyles?.componentBorderColor, ...visualStyle }} className="w-full h-auto rounded-[2rem] border-3" alt="card image" />;
+    const rawLink = String(content.link || '').trim();
+    const url = rawLink ? normalizeLinkTarget(rawLink) : '';
+    const hashLink = isHashLink(url);
+    const inner = (
+      <div className="relative w-full overflow-hidden rounded-[2rem] border-3 group" style={{ borderColor: globalStyles?.componentBorderColor, ...visualStyle }}>
+        <img
+          src={content.url}
+          alt={content.caption || "card image"}
+          className="w-full h-auto object-cover"
+        />
+        {content.caption ? (
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 overflow-hidden opacity-100 lg:opacity-0 transition-opacity duration-200 lg:group-hover:opacity-100">
+            <div
+              className="w-full px-4 py-3 text-sm font-bold line-clamp-3"
+              style={{
+                backgroundColor: globalStyles?.componentBackgroundColor,
+                color: globalStyles?.textColor,
+              }}
+            >
+              {content.caption}
+            </div>
+          </div>
+        ) : null}
+      </div>
+    );
+
+    if (!url) return inner;
+
+    return (
+      <motion.a
+        href={url}
+        whileHover={{ scale: 1.02 }}
+        whileTap={{ scale: 0.98 }}
+        onClick={(event) => {
+          void onTrackClick(el.id);
+          if (!hashLink) return;
+          event.preventDefault();
+          onHashNavigate(url);
+        }}
+        target={hashLink ? undefined : '_blank'}
+        rel={hashLink ? undefined : 'noopener noreferrer'}
+        className="block w-full"
+      >
+        {inner}
+      </motion.a>
+    );
   }
 
   if (type === 'gallery') {
@@ -602,19 +743,17 @@ function GalleryBlock({
     const url = rawLink ? normalizeLinkTarget(rawLink) : '';
     const hashLink = isHashLink(url);
 
-    const trackTransform =
-      slideW > 0
-        ? `translate3d(-${index * slideW}px,0,0)`
-        : `translateX(-${(index * 100) / n}%)`;
+    const xPos = slideW > 0 ? -(index * slideW) : `-${(index * 100) / n}%`;
     const trackWidth = slideW > 0 ? n * slideW : undefined;
 
     const media = (
       <div ref={viewportRef} className="relative aspect-square w-full overflow-hidden bg-black/5">
-        <div
-          className="flex h-full transition-transform duration-300 ease-out motion-reduce:transition-none"
+        <motion.div
+          className="flex h-full"
+          animate={{ x: xPos }}
+          transition={{ type: 'spring', stiffness: 300, damping: 30 }}
           style={{
             width: trackWidth != null ? trackWidth : `${n * 100}%`,
-            transform: trackTransform,
           }}
         >
           {images.map((img: any, i: number) => (
@@ -630,7 +769,7 @@ function GalleryBlock({
               />
             </div>
           ))}
-        </div>
+        </motion.div>
       </div>
     );
 
@@ -645,13 +784,7 @@ function GalleryBlock({
               void onTrackClick();
               if (!hashLink) return;
               event.preventDefault();
-              const nextHash = url.replace(/^#/, '');
-              if (url === '#') {
-                window.history.pushState(null, '', `${window.location.pathname}#`);
-              } else {
-                window.location.hash = nextHash;
-              }
-              onHashNavigate(`#${nextHash}`);
+              onHashNavigate(url);
             }}
             target={hashLink ? undefined : '_blank'}
             rel={hashLink ? undefined : 'noopener noreferrer'}
@@ -716,7 +849,7 @@ function GalleryBlock({
               className={cn('h-full w-full', content.fill ? 'object-cover' : 'object-contain')}
             />
             {img.caption ? (
-              <div className="pointer-events-none absolute inset-x-0 bottom-0 overflow-hidden opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 overflow-hidden opacity-100 lg:opacity-0 transition-opacity duration-200 lg:group-hover:opacity-100">
                 <div
                   className="gallery-grid-caption w-full px-3 py-2 text-xs font-bold line-clamp-3"
                   style={{
@@ -750,13 +883,7 @@ function GalleryBlock({
               void onTrackClick();
               if (!hashLink) return;
               event.preventDefault();
-              const nextHash = url.replace(/^#/, '');
-              if (url === '#') {
-                window.history.pushState(null, '', `${window.location.pathname}#`);
-              } else {
-                window.location.hash = nextHash;
-              }
-              onHashNavigate(`#${nextHash}`);
+              onHashNavigate(url);
             }}
             target={hashLink ? undefined : '_blank'}
             rel={hashLink ? undefined : 'noopener noreferrer'}
@@ -787,7 +914,7 @@ function CountdownDisplay({ title, targetAt, style }: { title?: string; targetAt
     <div style={style} className="w-full rounded-[2rem] border-3 p-5 text-center font-bold">
       <div className="text-sm opacity-70">{title || '活動倒數'}</div>
       <div className="flex items-baseline justify-center">
-        {[ { v: days, u: '天' }, { v: hours, u: '時' }, { v: mins, u: '分' }, { v: secs, u: '秒' } ].map((t, i) => (
+        {[{ v: days, u: '天' }, { v: hours, u: '時' }, { v: mins, u: '分' }, { v: secs, u: '秒' }].map((t, i) => (
           <React.Fragment key={i}>
             <span className="text-xl tabular-nums">{t.v}</span>
             <span className="text-sm opacity-70 ml-1 mr-3 last:mr-0">{t.u}</span>
@@ -917,13 +1044,7 @@ function AnimatedDropdown({
                         onTrackClick();
                         if (hashLink) {
                           event.preventDefault();
-                          const nextHash = resolvedUrl.replace(/^#/, '');
-                          if (resolvedUrl === '#') {
-                            window.history.pushState(null, '', `${window.location.pathname}#`);
-                          } else {
-                            window.location.hash = nextHash;
-                          }
-                          onHashNavigate(`#${nextHash}`);
+                          onHashNavigate(resolvedUrl);
                         }
                       }}
                       target={hashLink ? undefined : '_blank'}
@@ -950,19 +1071,19 @@ function AnimatedDropdown({
 function LightbulbLogo() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.9 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/>
+      <path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.9 1.3 1.5 1.5 2.5" /><path d="M9 18h6" /><path d="M10 22h4" />
     </svg>
   );
 }
 
 function CheckCircle2(props: any) {
   return (
-    <svg 
+    <svg
       {...props}
       width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
     >
-      <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/>
-      <path d="m9 12 2 2 4-4"/>
+      <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" />
+      <path d="m9 12 2 2 4-4" />
     </svg>
   );
 }
