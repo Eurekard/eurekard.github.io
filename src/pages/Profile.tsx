@@ -442,7 +442,7 @@ function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, se
   }
 
   if (type === 'image') {
-    return <img src={content.url} style={{ borderColor: globalStyles?.componentBorderColor, ...visualStyle }} className="w-full h-auto rounded-[2rem] border" alt="card image" />;
+    return <img src={content.url} style={{ borderColor: globalStyles?.componentBorderColor, ...visualStyle }} className="w-full h-auto rounded-[2rem] border-3" alt="card image" />;
   }
 
   if (type === 'gallery') {

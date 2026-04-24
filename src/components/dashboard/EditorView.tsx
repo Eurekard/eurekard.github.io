@@ -719,7 +719,7 @@ function ElementPreview({
     return (
       <div className="flex flex-wrap gap-2">
         {items.length === 0 ? (
-          <div style={baseComponentStyle} className="text-xs px-3 py-2 rounded-xl border">尚未新增標籤</div>
+          <div style={baseComponentStyle} className="text-xs px-3 py-2 rounded-xl border-3">尚未新增標籤</div>
         ) : (
           items.map((item: { text?: string; icon?: string }, idx: number) => (
             <div
