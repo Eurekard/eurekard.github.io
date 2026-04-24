@@ -108,3 +108,12 @@ details.eurek-details .eurek-details-body {
 details.eurek-details[open] .eurek-details-body {
   max-height: 2400px;
 }
+
+/* 圖庫網格：說明由下滑入＋淡入 */
+.gallery-grid-caption {
+  transform: translateY(8px);
+  transition: transform 0.28s ease, opacity 0.28s ease;
+}
+.group:hover .gallery-grid-caption {
+  transform: translateY(0);
+}

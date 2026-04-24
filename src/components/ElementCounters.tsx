@@ -28,10 +28,19 @@ export function VisitorCounter({
     const ref = doc(db, 'cards', cardId, 'element_stats', elementId);
     const key = `eurekard:visitor:${cardId}:${elementId}`;
     if (mode === 'live' && !window.localStorage.getItem(key)) {
-      window.localStorage.setItem(key, '1');
-      void setDoc(ref, { visitorCount: increment(1), updatedAt: new Date().toISOString() }, { merge: true });
+      void (async () => {
+        try {
+          await setDoc(ref, { visitorCount: increment(1), updatedAt: new Date().toISOString() }, { merge: true });
+          window.localStorage.setItem(key, '1');
+        } catch (e) {
+          console.error(e);
+        }
+      })();
     }
     const unsub = onSnapshot(ref, (snap) => {
+      if (mode === 'live' && !snap.exists() && window.localStorage.getItem(key)) {
+        window.localStorage.removeItem(key);
+      }
       setCount((snap.data() as any)?.visitorCount || 0);
     });
     return () => unsub();
@@ -104,18 +113,10 @@ export function MoodCounter({
     borderColor: (style as any)?.borderColor,
   };
 
-  return (
-    <motion.button
-      type="button"
-      onClick={handleVote}
-      disabled={hasVoted || mode !== 'live'}
-      style={buttonStyle}
-      whileHover={{ scale: mode === 'live' && !hasVoted ? 1.02 : 1 }}
-      whileTap={{ scale: mode === 'live' && !hasVoted ? 0.98 : 1 }}
-      className="w-full rounded-[2rem] border p-5 text-center font-bold disabled:opacity-50 flex items-center justify-between group"
-    >
+  const inner = (
+    <>
       <div className="flex items-center gap-4 min-w-0">
-        <div className="w-10 h-10 rounded-2xl flex items-center justify-center transition-colors bg-white/25">
+        <div className="w-10 h-10 rounded-2xl flex items-center justify-center transition-colors">
           <span className="text-xl leading-none">{content?.emoji || '❤️'}</span>
         </div>
         <div className="min-w-0 text-left">
@@ -125,6 +126,28 @@ export function MoodCounter({
       <div className="opacity-0 group-hover:opacity-100 transition-opacity translate-x-4 group-hover:translate-x-0">
         <Heart size={18} />
       </div>
+    </>
+  );
+
+  if (mode !== 'live') {
+    return (
+      <div style={buttonStyle} className="w-full cursor-default rounded-[2rem] border p-5 text-center font-bold flex items-center justify-between group">
+        {inner}
+      </div>
+    );
+  }
+
+  return (
+    <motion.button
+      type="button"
+      onClick={handleVote}
+      disabled={hasVoted}
+      style={buttonStyle}
+      whileHover={{ scale: !hasVoted ? 1.02 : 1 }}
+      whileTap={{ scale: !hasVoted ? 0.98 : 1 }}
+      className="w-full rounded-[2rem] border p-5 text-center font-bold disabled:opacity-50 flex items-center justify-between group"
+    >
+      {inner}
     </motion.button>
   );
 }

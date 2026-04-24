@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { CardData, CardElement, GlobalDesignStyles } from '../../types';
 import { Plus, GripVertical, Trash2, Layout, Type, Image as ImageIcon, Link as LinkIcon, Play, Hash, Music, Timer, Heart, Settings2, Palette, Save, Eye, UploadCloud, Loader2, ChevronDown, List, Tag, ChevronLeft, ChevronRight } from 'lucide-react';
 import { motion, Reorder, AnimatePresence, useDragControls } from 'motion/react';
@@ -227,7 +227,12 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
                 )}
 
                 {/* 多數元件在編輯器預覽停用互動，避免拖曳時誤觸；少數元件需要可操作/可同步資料 */}
-                <div className={['music', 'mood', 'visitor', 'gallery'].includes(el.type) ? '' : 'pointer-events-none'}>
+                <div
+                  className={cn(
+                    'pointer-events-none',
+                    (el.type === 'music' || el.type === 'gallery') && 'pointer-events-auto'
+                  )}
+                >
                   <ElementPreview el={el} globalStyles={globalStyles} cardId={previewCardId} editorVisitorMode="display" />
                 </div>
               </SortableElementItem>
@@ -412,17 +417,32 @@ function EditorGalleryPreview({
   visualStyle,
   borderColor,
   textColor,
-  pageBgColor,
+  componentBgColor,
+  disableLinks,
 }: {
   content: any;
   baseComponentStyle: React.CSSProperties;
   visualStyle: React.CSSProperties;
   borderColor?: string;
   textColor?: string;
-  pageBgColor?: string;
+  componentBgColor?: string;
+  /** 編輯器內不開連結、不導向 */
+  disableLinks?: boolean;
 }) {
   const images = Array.isArray(content.images) ? content.images : [];
   const [index, setIndex] = useState(0);
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const [slideW, setSlideW] = useState(0);
+
+  useLayoutEffect(() => {
+    const el = viewportRef.current;
+    if (!el) return;
+    const measure = () => setSlideW(el.getBoundingClientRect().width);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   if (images.length === 0) {
     return <div style={baseComponentStyle} className="w-full p-6 rounded-[2rem] border text-sm opacity-60">圖庫尚未新增圖片</div>;
@@ -433,19 +453,29 @@ function EditorGalleryPreview({
     const slidePct = 100 / n;
     const current = images[index % n];
     const rawLink = String(current.link || '').trim();
-    const url = rawLink ? normalizeLinkTarget(rawLink) : '';
+    const url = disableLinks ? '' : rawLink ? normalizeLinkTarget(rawLink) : '';
+
+    const trackTransform =
+      slideW > 0
+        ? `translate3d(-${index * slideW}px,0,0)`
+        : `translateX(-${(index * 100) / n}%)`;
+    const trackWidth = slideW > 0 ? n * slideW : undefined;
 
     const media = (
-      <div className="relative aspect-square w-full overflow-hidden bg-black/5">
+      <div ref={viewportRef} className="relative aspect-square w-full overflow-hidden bg-black/5">
         <div
           className="flex h-full transition-transform duration-300 ease-out motion-reduce:transition-none"
           style={{
-            width: `${n * 100}%`,
-            transform: `translateX(-${(index * 100) / n}%)`,
+            width: trackWidth != null ? trackWidth : `${n * 100}%`,
+            transform: trackTransform,
           }}
         >
           {images.map((img: any, i: number) => (
-            <div key={`g-slide-${i}-${img.url || i}`} className="h-full shrink-0" style={{ width: `${slidePct}%` }}>
+            <div
+              key={`g-slide-${i}-${img.url || i}`}
+              className="h-full shrink-0"
+              style={slideW > 0 ? { width: slideW, flexShrink: 0 } : { width: `${slidePct}%` }}
+            >
               <img
                 src={img.url}
                 alt={img.caption || `gallery ${i + 1}`}
@@ -472,8 +502,8 @@ function EditorGalleryPreview({
         <div className="p-4 flex items-center gap-3" onPointerDown={(e) => e.stopPropagation()}>
           <button
             type="button"
-            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border bg-white/70 hover:bg-white transition-colors"
-            style={{ borderColor }}
+            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border transition-colors"
+            style={{ borderColor, color: textColor, backgroundColor: 'transparent' }}
             aria-label="上一張"
             onClick={(e) => {
               e.preventDefault();
@@ -490,8 +520,8 @@ function EditorGalleryPreview({
 
           <button
             type="button"
-            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border bg-white/70 hover:bg-white transition-colors"
-            style={{ borderColor }}
+            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border transition-colors"
+            style={{ borderColor, color: textColor, backgroundColor: 'transparent' }}
             aria-label="下一張"
             onClick={(e) => {
               e.preventDefault();
@@ -510,16 +540,16 @@ function EditorGalleryPreview({
     <div className="grid grid-cols-2 gap-2 w-full" onPointerDown={(e) => e.stopPropagation()}>
       {images.map((img: any, idx: number) => {
         const rawLink = String(img.link || '').trim();
-        const url = rawLink ? normalizeLinkTarget(rawLink) : '';
+        const url = disableLinks ? '' : rawLink ? normalizeLinkTarget(rawLink) : '';
         const inner = (
           <div className="relative aspect-square w-full overflow-hidden rounded-2xl border bg-black/5 group" style={{ borderColor }}>
             <img src={img.url} alt={img.caption || `圖庫 ${idx + 1}`} className={cn('h-full w-full', content.fill ? 'object-cover' : 'object-contain')} />
             {img.caption ? (
-              <div className="pointer-events-none absolute inset-x-0 bottom-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 overflow-hidden opacity-0 transition-opacity duration-200 group-hover:opacity-100">
                 <div
-                  className="m-2 rounded-xl border px-3 py-2 text-xs font-bold line-clamp-3 shadow-sm"
+                  className="gallery-grid-caption w-full border-t px-3 py-2 text-xs font-bold line-clamp-3"
                   style={{
-                    backgroundColor: pageBgColor || '#F5F5DC',
+                    backgroundColor: componentBgColor,
                     color: textColor,
                     borderColor,
                   }}
@@ -531,7 +561,7 @@ function EditorGalleryPreview({
           </div>
         );
 
-        if (!url) return <div key={`g-${idx}`}>{inner}</div>;
+        if (!url || disableLinks) return <div key={`g-${idx}`}>{inner}</div>;
         return (
           <a key={`g-${idx}`} href={url} className="block">
             {inner}
@@ -642,7 +672,8 @@ function ElementPreview({
         visualStyle={visualStyle}
         borderColor={globalStyles.componentBorderColor}
         textColor={globalStyles.textColor}
-        pageBgColor={globalStyles.backgroundColor}
+        componentBgColor={globalStyles.componentBackgroundColor}
+        disableLinks
       />
     );
   }
@@ -741,6 +772,7 @@ function ElementPreview({
         <MusicPlayer
           url={rawUrl}
           borderColor={globalStyles.componentBorderColor}
+          textColor={globalStyles.textColor}
           style={{ ...baseComponentStyle, ...visualStyle }}
         />
       </div>
@@ -1320,12 +1352,6 @@ function InspectorControls({ el, onUpdate }: { el: CardElement, onUpdate: (u: an
           className="w-full p-4 bg-cream border-none rounded-xl text-sm outline-none focus:ring-2 ring-cat-blue/20"
           placeholder="貼上 YouTube 或 YouTube Music 連結"
         />
-        <div className="p-4 bg-chocolate/5 rounded-xl border border-chocolate/10 text-xs text-chocolate/60 space-y-2">
-          <div className="font-black text-chocolate">提示</div>
-          <div>
-            音樂元件<strong>只支援 YouTube / YouTube Music</strong>（橫式小播放器：左封面、中歌名與頻道、右控制）。
-          </div>
-        </div>
       </div>
     );
   }

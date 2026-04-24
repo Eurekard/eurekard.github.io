@@ -13,7 +13,7 @@ import EditorView from '../components/dashboard/EditorView';
 
 export default function Dashboard() {
   const { user, profile, logOut } = useAuth();
-  const [activeTab, setActiveTab] = useState<'analytics' | 'responses' | 'editor'>('editor');
+  const [activeTab, setActiveTab] = useState<'analytics' | 'responses' | 'editor'>('analytics');
   const [cardData, setCardData] = useState<CardData | null>(null);
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [copied, setCopied] = useState(false);

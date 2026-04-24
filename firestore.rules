@@ -44,9 +44,8 @@ service cloud.firestore {
     }
 
     function isVisitorStatsWrite() {
+      // 注意：client 使用 FieldValue.increment 時，規則端以「寫入後最終數值」驗證；勿用 is int，部分專案會與 increment 不相容而全數擋下
       return incoming().keys().hasOnly(['visitorCount', 'updatedAt'])
-        && incoming().visitorCount is int
-        && incoming().visitorCount >= 0
         && isValidIsoString(incoming().updatedAt)
         && (
           !resource.exists
@@ -58,8 +57,6 @@ service cloud.firestore {
 
     function isMoodStatsWrite() {
       return incoming().keys().hasOnly(['moodCount', 'updatedAt'])
-        && incoming().moodCount is int
-        && incoming().moodCount >= 0
         && isValidIsoString(incoming().updatedAt)
         && (
           !resource.exists

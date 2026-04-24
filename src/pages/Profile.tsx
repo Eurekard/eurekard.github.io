@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useLayoutEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { db } from '../lib/firebase';
 import { doc, getDoc, collection, addDoc, query, onSnapshot, where } from 'firebase/firestore';
@@ -453,7 +453,7 @@ function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, se
         visualStyle={visualStyle}
         borderColor={globalStyles?.componentBorderColor}
         textColor={globalStyles?.textColor}
-        pageBgColor={globalStyles?.backgroundColor}
+        componentBgColor={globalStyles?.componentBackgroundColor}
         onTrackClick={() => void onTrackClick(el.id)}
         onHashNavigate={onHashNavigate}
       />
@@ -523,6 +523,7 @@ function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, se
       <MusicPlayer
         url={rawUrl}
         borderColor={globalStyles?.componentBorderColor}
+        textColor={globalStyles?.textColor}
         style={{ ...baseComponentStyle, ...visualStyle }}
       />
     );
@@ -549,7 +550,7 @@ function GalleryBlock({
   visualStyle,
   borderColor,
   textColor,
-  pageBgColor,
+  componentBgColor,
   onTrackClick,
   onHashNavigate,
 }: {
@@ -558,12 +559,25 @@ function GalleryBlock({
   visualStyle: React.CSSProperties;
   borderColor?: string;
   textColor?: string;
-  pageBgColor?: string;
+  componentBgColor?: string;
   onTrackClick: () => void;
   onHashNavigate: (hash: string) => void;
 }) {
   const images = Array.isArray(content.images) ? content.images : [];
   const [index, setIndex] = useState(0);
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const [slideW, setSlideW] = useState(0);
+
+  useLayoutEffect(() => {
+    const el = viewportRef.current;
+    if (!el) return;
+    const measure = () => setSlideW(el.getBoundingClientRect().width);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   if (images.length === 0) {
     return <div style={{ ...baseComponentStyle, ...visualStyle }} className="w-full rounded-[2rem] border p-6 text-sm opacity-60">圖庫尚未新增圖片</div>;
   }
@@ -576,17 +590,27 @@ function GalleryBlock({
     const url = rawLink ? normalizeLinkTarget(rawLink) : '';
     const hashLink = isHashLink(url);
 
+    const trackTransform =
+      slideW > 0
+        ? `translate3d(-${index * slideW}px,0,0)`
+        : `translateX(-${(index * 100) / n}%)`;
+    const trackWidth = slideW > 0 ? n * slideW : undefined;
+
     const media = (
-      <div className="relative aspect-square w-full overflow-hidden bg-black/5">
+      <div ref={viewportRef} className="relative aspect-square w-full overflow-hidden bg-black/5">
         <div
           className="flex h-full transition-transform duration-300 ease-out motion-reduce:transition-none"
           style={{
-            width: `${n * 100}%`,
-            transform: `translateX(-${(index * 100) / n}%)`,
+            width: trackWidth != null ? trackWidth : `${n * 100}%`,
+            transform: trackTransform,
           }}
         >
           {images.map((img: any, i: number) => (
-            <div key={`g-slide-${i}-${img.url || i}`} className="h-full shrink-0" style={{ width: `${slidePct}%` }}>
+            <div
+              key={`g-slide-${i}-${img.url || i}`}
+              className="h-full shrink-0"
+              style={slideW > 0 ? { width: slideW, flexShrink: 0 } : { width: `${slidePct}%` }}
+            >
               <img
                 src={img.url}
                 alt={img.caption || `gallery ${i + 1}`}
@@ -632,8 +656,8 @@ function GalleryBlock({
         <div className="p-4 flex items-center gap-3">
           <button
             type="button"
-            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border bg-white/70 hover:bg-white transition-colors"
-            style={{ borderColor }}
+            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border transition-colors"
+            style={{ borderColor, color: textColor, backgroundColor: 'transparent' }}
             aria-label="上一張"
             onClick={(e) => {
               e.preventDefault();
@@ -650,8 +674,8 @@ function GalleryBlock({
 
           <button
             type="button"
-            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border bg-white/70 hover:bg-white transition-colors"
-            style={{ borderColor }}
+            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border transition-colors"
+            style={{ borderColor, color: textColor, backgroundColor: 'transparent' }}
             aria-label="下一張"
             onClick={(e) => {
               e.preventDefault();
@@ -680,11 +704,11 @@ function GalleryBlock({
               className={cn('h-full w-full', content.fill ? 'object-cover' : 'object-contain')}
             />
             {img.caption ? (
-              <div className="pointer-events-none absolute inset-x-0 bottom-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 overflow-hidden opacity-0 transition-opacity duration-200 group-hover:opacity-100">
                 <div
-                  className="m-2 rounded-xl border px-3 py-2 text-xs font-bold line-clamp-3 shadow-sm"
+                  className="gallery-grid-caption w-full border-t px-3 py-2 text-xs font-bold line-clamp-3"
                   style={{
-                    backgroundColor: pageBgColor || '#F5F5DC',
+                    backgroundColor: componentBgColor,
                     color: textColor,
                     borderColor,
                   }}

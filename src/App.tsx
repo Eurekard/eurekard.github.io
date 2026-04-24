@@ -32,7 +32,9 @@ export default function App() {
             </ProtectedRoute>
           } />
           <Route path="/dashboard/*" element={
-            <Dashboard />
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
           } />
           <Route path="/:username" element={<Profile />} />
         </Routes>
