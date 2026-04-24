@@ -92,3 +92,19 @@
 .markdown-body :where(h3) {
   @apply text-lg;
 }
+
+/* 設定面板 <details>：平滑展開（用 max-height，避免干擾內部互動） */
+details.eurek-details > summary {
+  list-style: none;
+}
+details.eurek-details > summary::-webkit-details-marker {
+  display: none;
+}
+details.eurek-details .eurek-details-body {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.35s ease;
+}
+details.eurek-details[open] .eurek-details-body {
+  max-height: 2400px;
+}

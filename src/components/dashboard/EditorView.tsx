@@ -412,41 +412,48 @@ function EditorGalleryPreview({
   visualStyle,
   borderColor,
   textColor,
+  pageBgColor,
 }: {
   content: any;
   baseComponentStyle: React.CSSProperties;
   visualStyle: React.CSSProperties;
   borderColor?: string;
   textColor?: string;
+  pageBgColor?: string;
 }) {
   const images = Array.isArray(content.images) ? content.images : [];
   const [index, setIndex] = useState(0);
-  const [direction, setDirection] = useState(0);
 
   if (images.length === 0) {
     return <div style={baseComponentStyle} className="w-full p-6 rounded-[2rem] border text-sm opacity-60">圖庫尚未新增圖片</div>;
   }
 
   if (content.layout === 'slideshow') {
-    const current = images[index % images.length];
+    const n = images.length;
+    const slidePct = 100 / n;
+    const current = images[index % n];
     const rawLink = String(current.link || '').trim();
     const url = rawLink ? normalizeLinkTarget(rawLink) : '';
 
     const media = (
       <div className="relative aspect-square w-full overflow-hidden bg-black/5">
-        <AnimatePresence initial={false} custom={direction} mode="wait">
-          <motion.img
-            key={current.url}
-            src={current.url}
-            alt={current.caption || 'gallery'}
-            custom={direction}
-            initial={{ x: direction >= 0 ? 40 : -40, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            exit={{ x: direction >= 0 ? -40 : 40, opacity: 0 }}
-            transition={{ type: 'spring', stiffness: 420, damping: 34, mass: 0.7 }}
-            className={cn('absolute inset-0 h-full w-full', content.fill ? 'object-cover' : 'object-contain')}
-          />
-        </AnimatePresence>
+        <div
+          className="flex h-full transition-transform duration-300 ease-out motion-reduce:transition-none"
+          style={{
+            width: `${n * 100}%`,
+            transform: `translateX(-${(index * 100) / n}%)`,
+          }}
+        >
+          {images.map((img: any, i: number) => (
+            <div key={`g-slide-${i}-${img.url || i}`} className="h-full shrink-0" style={{ width: `${slidePct}%` }}>
+              <img
+                src={img.url}
+                alt={img.caption || `gallery ${i + 1}`}
+                className={cn('h-full w-full', content.fill ? 'object-cover' : 'object-contain')}
+              />
+            </div>
+          ))}
+        </div>
       </div>
     );
 
@@ -471,7 +478,6 @@ function EditorGalleryPreview({
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              setDirection(-1);
               setIndex((prev) => (prev - 1 + images.length) % images.length);
             }}
           >
@@ -490,7 +496,6 @@ function EditorGalleryPreview({
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              setDirection(1);
               setIndex((prev) => (prev + 1) % images.length);
             }}
           >
@@ -511,7 +516,16 @@ function EditorGalleryPreview({
             <img src={img.url} alt={img.caption || `圖庫 ${idx + 1}`} className={cn('h-full w-full', content.fill ? 'object-cover' : 'object-contain')} />
             {img.caption ? (
               <div className="pointer-events-none absolute inset-x-0 bottom-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-                <div className="m-2 rounded-xl bg-black/55 px-3 py-2 text-xs font-bold text-white line-clamp-3">{img.caption}</div>
+                <div
+                  className="m-2 rounded-xl border px-3 py-2 text-xs font-bold line-clamp-3 shadow-sm"
+                  style={{
+                    backgroundColor: pageBgColor || '#F5F5DC',
+                    color: textColor,
+                    borderColor,
+                  }}
+                >
+                  {img.caption}
+                </div>
               </div>
             ) : null}
           </div>
@@ -628,6 +642,7 @@ function ElementPreview({
         visualStyle={visualStyle}
         borderColor={globalStyles.componentBorderColor}
         textColor={globalStyles.textColor}
+        pageBgColor={globalStyles.backgroundColor}
       />
     );
   }
@@ -717,7 +732,7 @@ function ElementPreview({
       return (
         <div style={baseComponentStyle} className="w-full rounded-[2rem] border p-6 text-center">
           <Music className="mx-auto mb-2 opacity-40" />
-          <div className="text-sm opacity-70">貼上 Spotify / YouTube Music / YouTube 連結</div>
+          <div className="text-sm opacity-70">貼上 YouTube 或 YouTube Music 連結</div>
         </div>
       );
     }
@@ -1303,12 +1318,12 @@ function InspectorControls({ el, onUpdate }: { el: CardElement, onUpdate: (u: an
             onUpdate({ content: { ...content, url } });
           }}
           className="w-full p-4 bg-cream border-none rounded-xl text-sm outline-none focus:ring-2 ring-cat-blue/20"
-          placeholder="貼上 Spotify / YouTube Music / YouTube 連結"
+          placeholder="貼上 YouTube 或 YouTube Music 連結"
         />
         <div className="p-4 bg-chocolate/5 rounded-xl border border-chocolate/10 text-xs text-chocolate/60 space-y-2">
           <div className="font-black text-chocolate">提示</div>
           <div>
-            這裡使用<strong>自訂播放器介面</strong>：YouTube / YouTube Music 會用網站 UI 控制播放；Spotify 會顯示封面與標題，並在有提供 preview 時播放試聽片段（完整串流受平台限制）。
+            音樂元件<strong>只支援 YouTube / YouTube Music</strong>（橫式小播放器：左封面、中歌名與頻道、右控制）。
           </div>
         </div>
       </div>
@@ -1320,9 +1335,9 @@ function InspectorControls({ el, onUpdate }: { el: CardElement, onUpdate: (u: an
     const updateImages = (nextImages: Array<{ url: string; caption?: string; link?: string }>) => handleChange('images', nextImages);
     return (
       <div className="space-y-4">
-        <details className="rounded-2xl border border-chocolate/10 bg-white/60 overflow-hidden">
+        <details className="eurek-details rounded-2xl border border-chocolate/10 bg-white/60 overflow-hidden">
           <summary className="cursor-pointer px-4 py-3 text-xs font-black text-chocolate/70">圖庫設定</summary>
-          <div className="px-4 pb-4 space-y-3 border-t border-chocolate/10">
+          <div className="eurek-details-body px-4 pb-4 space-y-3 border-t border-chocolate/10">
             <label className="block text-xs font-bold text-chocolate/40">圖庫版型</label>
             <select value={content.layout || 'grid'} onChange={(e) => handleChange('layout', e.target.value)} className="w-full p-4 bg-cream border-none rounded-xl text-sm outline-none">
               <option value="grid">網格</option>
@@ -1339,13 +1354,13 @@ function InspectorControls({ el, onUpdate }: { el: CardElement, onUpdate: (u: an
         <label className="block text-xs font-bold text-chocolate/40">圖片清單</label>
         <div className="space-y-2">
           {images.map((img: any, index: number) => (
-            <details key={`gallery-${index}`} className="rounded-2xl border border-chocolate/10 bg-white/70 overflow-hidden">
+            <details key={`gallery-${index}`} className="eurek-details rounded-2xl border border-chocolate/10 bg-white/70 overflow-hidden">
               <summary className="cursor-pointer list-none px-3 py-2 flex items-center justify-between gap-3">
                 <div className="text-xs font-black text-chocolate/70 truncate">圖片 {index + 1}</div>
                 <div className="text-[10px] font-bold text-chocolate/35">展開</div>
               </summary>
 
-              <div className="border-t border-chocolate/10">
+              <div className="eurek-details-body border-t border-chocolate/10">
                 <div className="relative aspect-square w-full bg-black/5">
                   {img.url ? (
                     <img src={img.url} alt={img.caption || `圖片 ${index + 1}`} className="absolute inset-0 h-full w-full object-cover" />
@@ -1383,8 +1398,13 @@ function InspectorControls({ el, onUpdate }: { el: CardElement, onUpdate: (u: an
                     next[index] = { ...next[index], link: normalizeLinkTarget(raw) };
                     updateImages(next);
                   }} className="w-full p-3 bg-cream rounded-xl text-xs outline-none" placeholder="點擊連結（支援 #區段 / 自動補 https://）" />
-                  <button onClick={() => updateImages(images.filter((_: any, i: number) => i !== index))} className="w-full h-10 inline-flex items-center justify-center bg-red-50 text-red-500 rounded-xl text-xs font-black">
-                    刪除此圖
+                  <button
+                    type="button"
+                    title="刪除此圖"
+                    onClick={() => updateImages(images.filter((_: any, i: number) => i !== index))}
+                    className="w-full h-10 inline-flex items-center justify-center gap-2 bg-red-50 text-red-500 rounded-xl text-xs font-black"
+                  >
+                    <Trash2 size={16} />
                   </button>
                 </div>
               </div>

@@ -47,22 +47,26 @@ service cloud.firestore {
       return incoming().keys().hasOnly(['visitorCount', 'updatedAt'])
         && incoming().visitorCount is int
         && incoming().visitorCount >= 0
-        && incoming().visitorCount <= 1
         && isValidIsoString(incoming().updatedAt)
-        && (!resource.exists
-          || (incoming().visitorCount == existing().visitorCount + 1
-            && incoming().updatedAt != existing().updatedAt));
+        && (
+          !resource.exists
+            ? incoming().visitorCount == 1
+            : (incoming().visitorCount == existing().visitorCount + 1
+              && incoming().updatedAt != existing().updatedAt)
+        );
     }
 
     function isMoodStatsWrite() {
       return incoming().keys().hasOnly(['moodCount', 'updatedAt'])
         && incoming().moodCount is int
         && incoming().moodCount >= 0
-        && incoming().moodCount <= 1
         && isValidIsoString(incoming().updatedAt)
-        && (!resource.exists
-          || (incoming().moodCount == existing().moodCount + 1
-            && incoming().updatedAt != existing().updatedAt));
+        && (
+          !resource.exists
+            ? incoming().moodCount == 1
+            : (incoming().moodCount == existing().moodCount + 1
+              && incoming().updatedAt != existing().updatedAt)
+        );
     }
 
     // 1. User Profiles

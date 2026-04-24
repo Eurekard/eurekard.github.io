@@ -453,6 +453,7 @@ function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, se
         visualStyle={visualStyle}
         borderColor={globalStyles?.componentBorderColor}
         textColor={globalStyles?.textColor}
+        pageBgColor={globalStyles?.backgroundColor}
         onTrackClick={() => void onTrackClick(el.id)}
         onHashNavigate={onHashNavigate}
       />
@@ -548,6 +549,7 @@ function GalleryBlock({
   visualStyle,
   borderColor,
   textColor,
+  pageBgColor,
   onTrackClick,
   onHashNavigate,
 }: {
@@ -556,37 +558,43 @@ function GalleryBlock({
   visualStyle: React.CSSProperties;
   borderColor?: string;
   textColor?: string;
+  pageBgColor?: string;
   onTrackClick: () => void;
   onHashNavigate: (hash: string) => void;
 }) {
   const images = Array.isArray(content.images) ? content.images : [];
   const [index, setIndex] = useState(0);
-  const [direction, setDirection] = useState(0);
   if (images.length === 0) {
     return <div style={{ ...baseComponentStyle, ...visualStyle }} className="w-full rounded-[2rem] border p-6 text-sm opacity-60">圖庫尚未新增圖片</div>;
   }
 
   if (content.layout === 'slideshow') {
-    const current = images[index % images.length];
+    const n = images.length;
+    const slidePct = 100 / n;
+    const current = images[index % n];
     const rawLink = String(current.link || '').trim();
     const url = rawLink ? normalizeLinkTarget(rawLink) : '';
     const hashLink = isHashLink(url);
 
     const media = (
       <div className="relative aspect-square w-full overflow-hidden bg-black/5">
-        <AnimatePresence initial={false} custom={direction} mode="wait">
-          <motion.img
-            key={current.url}
-            src={current.url}
-            alt={current.caption || 'gallery'}
-            custom={direction}
-            initial={{ x: direction >= 0 ? 40 : -40, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            exit={{ x: direction >= 0 ? -40 : 40, opacity: 0 }}
-            transition={{ type: 'spring', stiffness: 420, damping: 34, mass: 0.7 }}
-            className={cn('absolute inset-0 h-full w-full', content.fill ? 'object-cover' : 'object-contain')}
-          />
-        </AnimatePresence>
+        <div
+          className="flex h-full transition-transform duration-300 ease-out motion-reduce:transition-none"
+          style={{
+            width: `${n * 100}%`,
+            transform: `translateX(-${(index * 100) / n}%)`,
+          }}
+        >
+          {images.map((img: any, i: number) => (
+            <div key={`g-slide-${i}-${img.url || i}`} className="h-full shrink-0" style={{ width: `${slidePct}%` }}>
+              <img
+                src={img.url}
+                alt={img.caption || `gallery ${i + 1}`}
+                className={cn('h-full w-full', content.fill ? 'object-cover' : 'object-contain')}
+              />
+            </div>
+          ))}
+        </div>
       </div>
     );
 
@@ -630,7 +638,6 @@ function GalleryBlock({
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              setDirection(-1);
               setIndex((prev) => (prev - 1 + images.length) % images.length);
             }}
           >
@@ -649,7 +656,6 @@ function GalleryBlock({
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              setDirection(1);
               setIndex((prev) => (prev + 1) % images.length);
             }}
           >
@@ -675,7 +681,16 @@ function GalleryBlock({
             />
             {img.caption ? (
               <div className="pointer-events-none absolute inset-x-0 bottom-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-                <div className="m-2 rounded-xl bg-black/55 px-3 py-2 text-xs font-bold text-white line-clamp-3">{img.caption}</div>
+                <div
+                  className="m-2 rounded-xl border px-3 py-2 text-xs font-bold line-clamp-3 shadow-sm"
+                  style={{
+                    backgroundColor: pageBgColor || '#F5F5DC',
+                    color: textColor,
+                    borderColor,
+                  }}
+                >
+                  {img.caption}
+                </div>
               </div>
             ) : null}
           </div>

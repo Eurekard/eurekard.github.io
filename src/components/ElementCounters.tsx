@@ -83,11 +83,18 @@ export function MoodCounter({
     if (cardId === 'demo_user') return;
     window.localStorage.setItem(localKey, '1');
     setHasVoted(true);
-    await setDoc(
-      doc(db, 'cards', cardId, 'element_stats', `${elementId}_mood`),
-      { moodCount: increment(1), updatedAt: new Date().toISOString() },
-      { merge: true }
-    );
+    try {
+      await setDoc(
+        doc(db, 'cards', cardId, 'element_stats', `${elementId}_mood`),
+        { moodCount: increment(1), updatedAt: new Date().toISOString() },
+        { merge: true }
+      );
+    } catch (e) {
+      console.error(e);
+      window.localStorage.removeItem(localKey);
+      setHasVoted(false);
+      alert('投票失敗（可能是連線或權限規則尚未部署）。請稍後再試。');
+    }
   };
 
   const buttonStyle = {
@@ -112,8 +119,7 @@ export function MoodCounter({
           <span className="text-xl leading-none">{content?.emoji || '❤️'}</span>
         </div>
         <div className="min-w-0 text-left">
-          <div className="text-lg truncate">{content?.title || '個人都說讚'}</div>
-          <div className="text-xs opacity-70">累計 {count}</div>
+          <div className="text-lg truncate">{count} {content?.title || '個人都說讚'}</div>
         </div>
       </div>
       <div className="opacity-0 group-hover:opacity-100 transition-opacity translate-x-4 group-hover:translate-x-0">
