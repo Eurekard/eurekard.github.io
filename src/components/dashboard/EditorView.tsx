@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { CardData, CardElement, GlobalDesignStyles } from '../../types';
 import { Plus, GripVertical, Trash2, Layout, Type, Image as ImageIcon, Link as LinkIcon, Play, Hash, Music, Timer, Heart, Settings, Settings2, Palette, Save, Eye, UploadCloud, Loader2, ChevronDown, List, Tag, ChevronLeft, ChevronRight } from 'lucide-react';
-import { motion, Reorder, AnimatePresence, useDragControls } from 'motion/react';
+import { motion, Reorder, AnimatePresence, useDragControls, MotionConfig } from 'motion/react';
+import type { Transition } from 'motion/react';
 import { db } from '../../lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import { cn } from '../../lib/utils';
@@ -166,7 +167,11 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
   const pageStyle = toGlobalPageStyle(globalStyles);
   const previewCardId = ownerUid || cardData.uid;
 
+  // Mobile: use lightweight tween to avoid spring physics cost on low-power devices
+  const mobileTransition: Transition = { type: 'tween', duration: 0.18, ease: 'easeOut' };
+
   return (
+    <MotionConfig transition={isTouchDevice ? mobileTransition : undefined} reducedMotion="user">
     <div className="relative min-h-[calc(100vh-73px)] w-full overflow-x-hidden bg-cream flex justify-center">
 
       {/* Decorative Blobs (Same as Profile) */}
@@ -329,6 +334,7 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
             exit={{ x: '100%', opacity: 0 }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
             className="absolute top-0 right-0 h-[100vh] w-80 bg-white border-l border-chocolate/5 p-6 overflow-y-auto z-50 fixed right-0"
+            style={{ willChange: 'transform, opacity' }}
           >
             <div className="flex items-center justify-between mb-8 pb-4 border-b border-chocolate/5">
               <div className="flex items-center gap-2 text-chocolate">
@@ -392,6 +398,7 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
         )}
       </AnimatePresence>
     </div>
+    </MotionConfig>
   );
 }
 
