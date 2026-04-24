@@ -1,130 +1,161 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
-import { Eye, MousePointer2, Smartphone, Monitor, Globe } from 'lucide-react';
+import { Eye, MousePointer2, Smartphone, Monitor, Globe, AlertCircle, RefreshCw } from 'lucide-react';
 import { cn } from '../../lib/utils';
-import { db } from '../../lib/firebase';
-import { onSnapshot, collection } from 'firebase/firestore';
-import { AnalyticsDevice, AnalyticsSource, buildRecentDays, formatShortDate } from '../../lib/analytics';
 
-type AnalyticsEvent = {
-  type: 'view' | 'click';
-  day: string;
-  device: AnalyticsDevice;
-  source: AnalyticsSource;
-};
+type TrendPoint = { name: string; views: number; clicks: number };
+type SourceRow = { label: string; percentage: number; color: string };
 
-const SOURCE_COLOR_MAP: Record<AnalyticsSource, string> = {
-  direct: 'bg-cat-blue',
-  social: 'bg-pink-400',
-  search: 'bg-chocolate',
-  referral: 'bg-blue-600',
-  unknown: 'bg-gray-400',
-};
-
-const SOURCE_LABEL_MAP: Record<AnalyticsSource, string> = {
-  direct: '直接流量',
-  social: '社群來源',
-  search: '搜尋引擎',
-  referral: '引薦網站',
-  unknown: '其他',
+type AnalyticsReport = {
+  views: number;
+  clicks: number;
+  desktopRate: number;
+  mobileRate: number;
+  trend: TrendPoint[];
+  sources: SourceRow[];
+  dataDelayNote?: string;
 };
 
 export default function AnalyticsView({ cardId }: { cardId: string }) {
-  const [views, setViews] = useState(0);
-  const [clicks, setClicks] = useState(0);
-  const [desktopRate, setDesktopRate] = useState(0);
-  const [mobileRate, setMobileRate] = useState(0);
-  const [trend, setTrend] = useState<{ name: string; views: number; clicks: number }[]>([]);
-  const [sources, setSources] = useState<{ label: string; percentage: number; color: string }[]>([
-    { label: '直接流量', percentage: 0, color: 'bg-cat-blue' },
-  ]);
-  const [responseCount, setResponseCount] = useState(0);
+  const [report, setReport] = useState<AnalyticsReport | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [rangeDays, setRangeDays] = useState<7 | 30>(7);
+  const [responseCount, setResponseCount] = useState(0);
 
+  // Fetch response count from Firestore (still real-time, unrelated to GA4)
   useEffect(() => {
+    if (!cardId || cardId === 'demo_user') return;
+    import('firebase/firestore').then(({ collection, onSnapshot }) => {
+      import('../../lib/firebase').then(({ db }) => {
+        const unsub = onSnapshot(
+          collection(db, 'cards', cardId, 'responses'),
+          (snap) => setResponseCount(snap.size)
+        );
+        return () => unsub();
+      });
+    });
+  }, [cardId]);
+
+  const fetchReport = async () => {
     if (!cardId || cardId === 'demo_user') {
-      setTrend(buildRecentDays(rangeDays).map((day) => ({ name: formatShortDate(day), views: 0, clicks: 0 })));
+      // Demo mode: show zeroed-out placeholder trend
+      const days: TrendPoint[] = [];
+      const now = new Date();
+      for (let i = rangeDays - 1; i >= 0; i--) {
+        const d = new Date(now);
+        d.setDate(now.getDate() - i);
+        const m = d.getMonth() + 1;
+        const day = d.getDate();
+        days.push({ name: `${m}/${day}`, views: 0, clicks: 0 });
+      }
+      setReport({
+        views: 0, clicks: 0, desktopRate: 0, mobileRate: 0,
+        trend: days,
+        sources: [{ label: '直接流量', percentage: 0, color: 'bg-cat-blue' }],
+      });
       return;
     }
 
-    const unsubAnalytics = onSnapshot(collection(db, 'analytics', cardId, 'events'), (snapshot) => {
-      const events = snapshot.docs.map((row) => row.data() as AnalyticsEvent);
+    setLoading(true);
+    setError(null);
 
-      const totalViews = events.filter((event) => event.type === 'view').length;
-      const totalClicks = events.filter((event) => event.type === 'click').length;
+    try {
+      const res = await fetch(`/api/analytics-report?uid=${encodeURIComponent(cardId)}&days=${rangeDays}`);
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `HTTP ${res.status}`);
+      }
+      const data: AnalyticsReport = await res.json();
+      setReport(data);
+    } catch (err: any) {
+      console.error('Analytics fetch error:', err);
+      setError(err.message || 'Failed to load analytics');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-      const desktopViews = events.filter((event) => event.type === 'view' && event.device === 'desktop').length;
-      const mobileViews = events.filter((event) => event.type === 'view' && event.device === 'mobile').length;
-
-      setViews(totalViews);
-      setClicks(totalClicks);
-      setDesktopRate(totalViews > 0 ? Math.round((desktopViews / totalViews) * 100) : 0);
-      setMobileRate(totalViews > 0 ? Math.round((mobileViews / totalViews) * 100) : 0);
-
-      const days = buildRecentDays(rangeDays);
-      const dayCounts = new Map<string, { views: number; clicks: number }>();
-      days.forEach((day) => dayCounts.set(day, { views: 0, clicks: 0 }));
-
-      events.forEach((event) => {
-        const bucket = dayCounts.get(event.day);
-        if (!bucket) return;
-        if (event.type === 'view') bucket.views += 1;
-        if (event.type === 'click') bucket.clicks += 1;
-      });
-
-      setTrend(days.map((day) => ({ name: formatShortDate(day), ...(dayCounts.get(day) || { views: 0, clicks: 0 }) })));
-
-      const sourceViews: Record<AnalyticsSource, number> = {
-        direct: 0,
-        social: 0,
-        search: 0,
-        referral: 0,
-        unknown: 0,
-      };
-
-      events.forEach((event) => {
-        if (event.type !== 'view') return;
-        sourceViews[event.source] += 1;
-      });
-
-      const sourceRows = (Object.keys(sourceViews) as AnalyticsSource[])
-        .map((source) => ({
-          source,
-          count: sourceViews[source],
-        }))
-        .filter((row) => row.count > 0)
-        .sort((a, b) => b.count - a.count)
-        .map((row) => ({
-          label: SOURCE_LABEL_MAP[row.source],
-          percentage: totalViews > 0 ? Math.round((row.count / totalViews) * 100) : 0,
-          color: SOURCE_COLOR_MAP[row.source],
-        }));
-
-      setSources(sourceRows.length > 0 ? sourceRows : [{ label: '直接流量', percentage: 0, color: 'bg-cat-blue' }]);
-    });
-
-    const unsubResponses = onSnapshot(collection(db, 'cards', cardId, 'responses'), (snapshot) => {
-      setResponseCount(snapshot.size);
-    });
-
-    return () => {
-      unsubAnalytics();
-      unsubResponses();
-    };
+  useEffect(() => {
+    fetchReport();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cardId, rangeDays]);
 
   const ctr = useMemo(() => {
-    if (!views) return 0;
-    return Number(((clicks / views) * 100).toFixed(1));
-  }, [clicks, views]);
+    if (!report?.views) return 0;
+    return Number(((report.clicks / report.views) * 100).toFixed(1));
+  }, [report]);
+
+  const views = report?.views ?? 0;
+  const clicks = report?.clicks ?? 0;
+  const desktopRate = report?.desktopRate ?? 0;
+  const mobileRate = report?.mobileRate ?? 0;
+  const trend = report?.trend ?? [];
+  const sources = report?.sources ?? [{ label: '直接流量', percentage: 0, color: 'bg-cat-blue' }];
 
   return (
     <div className="p-8 max-w-6xl mx-auto space-y-8">
+      {/* GA4 Status Banner */}
+      <div className="flex items-center gap-3 px-5 py-3 bg-cat-blue/5 border border-cat-blue/15 rounded-2xl text-sm">
+        <Globe size={16} className="text-cat-blue shrink-0" />
+        <span className="text-chocolate/70 font-medium">
+          數據來源：<span className="font-bold text-chocolate">Google Analytics 4</span>（已過濾機器人流量）
+        </span>
+        {report?.dataDelayNote && (
+          <span className="ml-auto text-[11px] text-chocolate/40 hidden sm:block">
+            ※ 資料延遲最多 48h
+          </span>
+        )}
+      </div>
+
+      {/* Error State */}
+      {error && (
+        <div className="flex items-start gap-4 p-6 bg-red-50 border border-red-100 rounded-[2rem]">
+          <AlertCircle size={20} className="text-red-400 shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <div className="font-bold text-red-600 mb-1">無法載入 GA4 分析數據</div>
+            <div className="text-sm text-red-500 break-words">{error}</div>
+            {error.includes('not configured') && (
+              <div className="mt-3 p-4 bg-white/60 rounded-xl text-xs text-red-400 space-y-1">
+                <div className="font-bold">需要設定以下環境變數（Vercel Dashboard）：</div>
+                <code className="block">GA4_PROPERTY_ID = &lt;你的 GA4 屬性 ID（數字）&gt;</code>
+                <code className="block">GA4_SERVICE_ACCOUNT_JSON = &lt;服務帳號 JSON 金鑰內容&gt;</code>
+              </div>
+            )}
+          </div>
+          <button
+            onClick={fetchReport}
+            className="shrink-0 p-2 rounded-xl bg-red-100 text-red-400 hover:bg-red-200 transition-colors"
+          >
+            <RefreshCw size={16} />
+          </button>
+        </div>
+      )}
+
+      {/* Stat Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard icon={<Eye className="text-cat-blue" />} label="總瀏覽量" value={views.toLocaleString()} />
-        <StatCard icon={<MousePointer2 className="text-pink-400" />} label="總點擊數" value={clicks.toLocaleString()} sub={`CTR ${ctr}%`} />
-        <StatCard icon={<Monitor className="text-chocolate/60" />} label="桌面端" value={`${desktopRate}%`} />
-        <StatCard icon={<Smartphone className="text-chocolate/60" />} label="行動端" value={`${mobileRate}%`} sub={`回應 ${responseCount} 則`} />
+        <StatCard
+          icon={<Eye className="text-cat-blue" />}
+          label="總瀏覽量"
+          value={loading ? '—' : views.toLocaleString()}
+        />
+        <StatCard
+          icon={<MousePointer2 className="text-pink-400" />}
+          label="總點擊數"
+          value={loading ? '—' : clicks.toLocaleString()}
+          sub={loading ? undefined : `CTR ${ctr}%`}
+        />
+        <StatCard
+          icon={<Monitor className="text-chocolate/60" />}
+          label="桌面端"
+          value={loading ? '—' : `${desktopRate}%`}
+        />
+        <StatCard
+          icon={<Smartphone className="text-chocolate/60" />}
+          label="行動端"
+          value={loading ? '—' : `${mobileRate}%`}
+          sub={`回應 ${responseCount} 則`}
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -140,37 +171,58 @@ export default function AnalyticsView({ cardId }: { cardId: string }) {
               <option value="30">過去 30 天</option>
             </select>
           </div>
-          <div className="h-[300px] w-full min-w-0">
-            <ResponsiveContainer width="100%" height="100%" debounce={1}>
-              <AreaChart data={trend}>
-                <defs>
-                  <linearGradient id="colorViews" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#89CFF0" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#89CFF0" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F5F5DC" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#3D2B1F', opacity: 0.4, fontSize: 12 }} dy={10} />
-                <YAxis hide />
-                <Tooltip 
-                  contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', background: '#fff' }}
-                />
-                <Area type="monotone" dataKey="views" stroke="#89CFF0" strokeWidth={3} fillOpacity={1} fill="url(#colorViews)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
+
+          {loading ? (
+            <div className="h-[300px] flex items-center justify-center">
+              <div className="w-8 h-8 border-2 border-cat-blue border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : (
+            <div className="h-[300px] w-full min-w-0">
+              <ResponsiveContainer width="100%" height="100%" debounce={1}>
+                <AreaChart data={trend}>
+                  <defs>
+                    <linearGradient id="colorViews" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#89CFF0" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#89CFF0" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F5F5DC" />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#3D2B1F', opacity: 0.4, fontSize: 12 }} dy={10} />
+                  <YAxis hide />
+                  <Tooltip
+                    contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', background: '#fff' }}
+                  />
+                  <Area type="monotone" dataKey="views" stroke="#89CFF0" strokeWidth={3} fillOpacity={1} fill="url(#colorViews)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </div>
 
         <div className="bg-white p-8 rounded-[2.5rem] border border-chocolate/5 soft-shadow flex flex-col">
           <h3 className="text-xl font-display font-bold text-chocolate mb-8">流量來源</h3>
           <div className="flex-1 space-y-6">
-            {sources.map((source) => (
-              <SourceProgress key={source.label} label={source.label} percentage={source.percentage} color={source.color} />
-            ))}
+            {loading ? (
+              <div className="space-y-4">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="space-y-2 animate-pulse">
+                    <div className="flex justify-between">
+                      <div className="h-4 w-20 bg-cream rounded" />
+                      <div className="h-4 w-8 bg-cream rounded" />
+                    </div>
+                    <div className="h-2 w-full bg-cream rounded-full" />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              sources.map((source) => (
+                <SourceProgress key={source.label} label={source.label} percentage={source.percentage} color={source.color} />
+              ))
+            )}
           </div>
           <div className="mt-8 p-4 bg-cream/50 rounded-2xl flex items-center gap-3">
             <Globe size={20} className="text-chocolate/40" />
-            <span className="text-xs font-bold text-chocolate/60 uppercase tracking-wider">數據每 5 分鐘更新一次</span>
+            <span className="text-xs font-bold text-chocolate/60 uppercase tracking-wider">GA4 機器人過濾已啟用</span>
           </div>
         </div>
       </div>
@@ -202,9 +254,9 @@ function SourceProgress({ label, percentage, color }: any) {
         <span className="opacity-40">{percentage}%</span>
       </div>
       <div className="h-2 w-full bg-cream rounded-full overflow-hidden">
-        <div 
-          className={cn("h-full rounded-full transition-all duration-1000", color)} 
-          style={{ width: `${percentage}%` }} 
+        <div
+          className={cn('h-full rounded-full transition-all duration-1000', color)}
+          style={{ width: `${percentage}%` }}
         />
       </div>
     </div>

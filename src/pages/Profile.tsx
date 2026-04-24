@@ -10,7 +10,7 @@ import { buildEmbedHtmlFromUrl } from '../lib/embed';
 import MusicPlayer from '../components/MusicPlayer';
 import { MoodCounter, VisitorCounter } from '../components/ElementCounters';
 import { isHashLink, normalizeLinkTarget, resolveGlobalStyles, toElementStyle, toGlobalPageStyle } from '../lib/cardStyle';
-import { detectDevice, detectSource, getAnalyticsDay } from '../lib/analytics';
+import { trackCardView, trackCardClick } from '../lib/ga4';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 
@@ -102,19 +102,9 @@ export default function Profile() {
 
   useEffect(() => {
     if (!data?.uid) return;
-
-    const day = getAnalyticsDay();
-    const dedupeKey = `eurekard:view:${data.uid}:${day}`;
-    if (window.localStorage.getItem(dedupeKey)) return;
-
-    window.localStorage.setItem(dedupeKey, '1');
-    void addDoc(collection(db, 'analytics', data.uid, 'events'), {
-      type: 'view',
-      day,
-      device: detectDevice(),
-      source: detectSource(document.referrer),
-      createdAt: new Date().toISOString(),
-    });
+    // GA4 handles bot filtering server-side — just fire the event.
+    // Firebase Analytics SDK deduplicates within a session automatically.
+    void trackCardView(data.uid, data.profile?.displayName || username || '');
   }, [data?.uid]);
 
   useEffect(() => {
@@ -183,17 +173,9 @@ export default function Profile() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data?.published_content?.elements]);
 
-  const handleTrackClick = async (targetId?: string) => {
+  const handleTrackClick = (targetId?: string) => {
     if (!data?.uid) return;
-
-    await addDoc(collection(db, 'analytics', data.uid, 'events'), {
-      type: 'click',
-      day: getAnalyticsDay(),
-      device: detectDevice(),
-      source: detectSource(document.referrer),
-      targetId: targetId || 'button',
-      createdAt: new Date().toISOString(),
-    });
+    void trackCardClick(data.uid, targetId || 'button');
   };
 
   const handleSendAnon = async (cardId: string) => {
