@@ -57,33 +57,42 @@ export default async function handler(req: any, res: any) {
     const client = new BetaAnalyticsDataClient({ credentials });
     const property = `properties/${propertyId}`;
 
-    // pagePath filter (standard dimension, works without custom registration)
-    const pathFilter = username ? {
-      dimensionFilter: {
+    // ── Build dimension filter ──────────────────────────────────────────────
+    // Always exclude localhost / local network traffic (in case GA4 tag fires locally).
+    // Combine with pagePath filter when username is provided.
+    const hostnameExclusion = {
+      notExpression: {
         filter: {
-          fieldName: 'pagePath',
-          stringFilter: { matchType: 'BEGINS_WITH' as const, value: `/${username}` },
+          fieldName: 'hostname',
+          stringFilter: { matchType: 'CONTAINS' as const, value: 'localhost' },
         },
       },
-    } : {};
+    };
+    const pathExpressions = username ? [
+      { filter: { fieldName: 'pagePath', stringFilter: { matchType: 'BEGINS_WITH' as const, value: `/${username}` } } },
+      hostnameExclusion,
+    ] : [hostnameExclusion];
+    const pathFilter = { dimensionFilter: { andGroup: { expressions: pathExpressions } } };
 
     // ── Run all reports in parallel ─────────────────────────────────────────
     const [totalsRes, timelineRes, sourcesRes, realtimeRes] = await Promise.all([
 
       // 1) Historical totals (24-48h delay, covers full period)
+      //    totalUsers = unique visitors in the period (same person = counted once)
+      //    eventCount = all events; eventCount - totalUsers ≈ click events
       client.runReport({
         property,
         dateRanges: [{ startDate: `${days}daysAgo`, endDate: 'today' }],
-        metrics: [{ name: 'screenPageViews' }, { name: 'eventCount' }],
+        metrics: [{ name: 'totalUsers' }, { name: 'eventCount' }],
         ...pathFilter,
       }),
 
-      // 2) Daily trend timeline
+      // 2) Daily trend timeline – unique users per day
       client.runReport({
         property,
         dateRanges: [{ startDate: `${days}daysAgo`, endDate: 'today' }],
         dimensions: [{ name: 'date' }],
-        metrics: [{ name: 'screenPageViews' }, { name: 'eventCount' }],
+        metrics: [{ name: 'totalUsers' }, { name: 'eventCount' }],
         orderBys: [{ dimension: { dimensionName: 'date' } }],
         ...pathFilter,
       }),

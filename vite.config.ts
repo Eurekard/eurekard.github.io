@@ -11,7 +11,7 @@ function localApiPlugin() {
   let credentials: Record<string, unknown> | null = null;
 
   // The SA key file sits one folder up from the project root (in Downloads/)
-  const saPath = path.resolve(process.cwd(), '../gen-lang-client-0158304921-3cc3f5a6b937.json');
+  const saPath = path.resolve(process.cwd(), 'gen-lang-client-0158304921-3cc3f5a6b937.json');
   try {
     credentials = JSON.parse(fs.readFileSync(saPath, 'utf-8'));
     console.log('[local-api] ✅ GA4 credentials loaded from', saPath);
@@ -43,27 +43,32 @@ function localApiPlugin() {
           const displayName = qs.get('displayName') ?? '';
           const days = qs.get('days') === '30' ? 30 : 7;
 
-          const pathFilter = username ? {
-            dimensionFilter: {
+          const hostnameExclusion = {
+            notExpression: {
               filter: {
-                fieldName: 'pagePath',
-                stringFilter: { matchType: 'BEGINS_WITH' as const, value: `/${username}` },
+                fieldName: 'hostname',
+                stringFilter: { matchType: 'CONTAINS' as const, value: 'localhost' },
               },
             },
-          } : {};
+          };
+          const pathExpressions = username ? [
+            { filter: { fieldName: 'pagePath', stringFilter: { matchType: 'BEGINS_WITH' as const, value: `/${username}` } } },
+            hostnameExclusion,
+          ] : [hostnameExclusion];
+          const pathFilter = { dimensionFilter: { andGroup: { expressions: pathExpressions } } };
 
           const [totalsRes, timelineRes, sourcesRes, realtimeRes] = await Promise.all([
             client.runReport({
               property,
               dateRanges: [{ startDate: `${days}daysAgo`, endDate: 'today' }],
-              metrics: [{ name: 'screenPageViews' }, { name: 'eventCount' }],
+              metrics: [{ name: 'totalUsers' }, { name: 'eventCount' }],
               ...pathFilter,
             }),
             client.runReport({
               property,
               dateRanges: [{ startDate: `${days}daysAgo`, endDate: 'today' }],
               dimensions: [{ name: 'date' }],
-              metrics: [{ name: 'screenPageViews' }, { name: 'eventCount' }],
+              metrics: [{ name: 'totalUsers' }, { name: 'eventCount' }],
               orderBys: [{ dimension: { dimensionName: 'date' } }],
               ...pathFilter,
             }),
