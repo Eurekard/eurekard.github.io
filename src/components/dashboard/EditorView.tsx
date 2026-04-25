@@ -357,7 +357,7 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
               <GlobalStyleControls styles={globalStyles} onChange={setGlobalStyles} />
             </div>
 
-            <h3 className="text-sm font-bold text-chocolate/40 uppercase tracking-widest mb-4">新增元素</h3>
+            <h3 className="text-sm font-bold text-chocolate/40 uppercase tracking-widest mb-4">新增元件</h3>
             <div className="grid grid-cols-2 gap-3 pb-8">
               {ELEMENT_TYPES.map((et) => (
                 <button
@@ -811,10 +811,10 @@ function ElementPreview({
   if (type === 'image') {
     return (
       <div className="relative w-full overflow-hidden rounded-[2rem] border group pointer-events-none" style={computedStyle}>
-      {content.url
-        ? <img src={content.url} alt="preview" className="w-full h-auto object-cover" />
-        : <div className="w-full aspect-video flex flex-col items-center justify-center gap-2 opacity-30"><ImageIcon size={32} /><span className="text-xs font-bold">尚未新增圖片</span></div>
-      }
+        {content.url
+          ? <img src={content.url} alt="preview" className="w-full h-auto object-cover" />
+          : <div className="w-full aspect-video flex flex-col items-center justify-center gap-2 opacity-30"><ImageIcon size={32} /><span className="text-xs font-bold">尚未新增圖片</span></div>
+        }
         {content.caption ? (
           <div className="pointer-events-none absolute inset-x-0 bottom-0 overflow-hidden opacity-100 lg:opacity-0 transition-opacity duration-200 lg:group-hover:opacity-100">
             <div
