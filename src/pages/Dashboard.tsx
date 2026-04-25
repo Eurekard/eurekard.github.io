@@ -155,7 +155,7 @@ export default function Dashboard() {
           <AnimatePresence mode="wait">
             {activeTab === 'analytics' && (
               <motion.div key="analytics" className="flex-1 relative" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                <AnalyticsView cardId={cardData.uid} />
+                <AnalyticsView cardId={cardData.uid} username={profile?.username} />
               </motion.div>
             )}
             {activeTab === 'responses' && (

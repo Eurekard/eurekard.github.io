@@ -11,6 +11,7 @@ import MusicPlayer from '../components/MusicPlayer';
 import { MoodCounter, VisitorCounter } from '../components/ElementCounters';
 import { isHashLink, normalizeLinkTarget, resolveGlobalStyles, toElementStyle, toGlobalPageStyle } from '../lib/cardStyle';
 import { trackCardView, trackCardClick } from '../lib/ga4';
+import { detectDevice, detectSource, getAnalyticsDay } from '../lib/analytics';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 
@@ -102,9 +103,37 @@ export default function Profile() {
 
   useEffect(() => {
     if (!data?.uid) return;
-    // GA4 handles bot filtering server-side — just fire the event.
-    // Firebase Analytics SDK deduplicates within a session automatically.
+
+    // ── Bot detection ────────────────────────────────────────
+    // Reject obvious bots before writing to Firestore.
+    // GA4 also filters bots server-side independently.
+    const ua = navigator.userAgent.toLowerCase();
+    const BOT_PATTERNS = [
+      'googlebot', 'bingbot', 'slurp', 'duckduckbot', 'baiduspider',
+      'yandexbot', 'sogou', 'exabot', 'facebot', 'ia_archiver',
+      'bot/', 'spider', 'crawl', 'headless', 'phantom', 'prerender',
+      'wget', 'curl', 'python-requests', 'go-http',
+    ];
+    const isBotUA = BOT_PATTERNS.some((p) => ua.includes(p));
+    const isWebDriver = !!(navigator as any).webdriver; // Selenium / Playwright
+    if (isBotUA || isWebDriver) return; // silently skip bots
+    // ────────────────────────────────────────────────────────
+
+    // 1. GA4: sends clean data to Google Analytics (with their own bot filter)
     void trackCardView(data.uid, data.profile?.displayName || username || '');
+
+    // 2. Firestore: write for real-time dashboard display (per-day deduplicated)
+    const day = getAnalyticsDay();
+    const dedupeKey = `eurekard:view:${data.uid}:${day}`;
+    if (window.localStorage.getItem(dedupeKey)) return;
+    window.localStorage.setItem(dedupeKey, '1');
+    void addDoc(collection(db, 'analytics', data.uid, 'events'), {
+      type: 'view',
+      day,
+      device: detectDevice(),
+      source: detectSource(document.referrer),
+      createdAt: new Date().toISOString(),
+    });
   }, [data?.uid]);
 
   useEffect(() => {
@@ -175,7 +204,17 @@ export default function Profile() {
 
   const handleTrackClick = (targetId?: string) => {
     if (!data?.uid) return;
+    // GA4 click event (bot-filtered by Google)
     void trackCardClick(data.uid, targetId || 'button');
+    // Firestore click event (for real-time dashboard)
+    void addDoc(collection(db, 'analytics', data.uid, 'events'), {
+      type: 'click',
+      day: getAnalyticsDay(),
+      device: detectDevice(),
+      source: detectSource(document.referrer),
+      targetId: targetId || 'button',
+      createdAt: new Date().toISOString(),
+    });
   };
 
   const handleSendAnon = async (cardId: string) => {

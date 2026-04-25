@@ -28,11 +28,13 @@ export default async function handler(req: any, res: any) {
   }
 
   const uid = typeof req.query?.uid === 'string' ? req.query.uid.trim() : '';
+  // username is used to filter by pagePath (standard GA4 dimension, no custom registration needed)
+  const username = typeof req.query?.username === 'string' ? req.query.username.trim() : '';
   const daysParam = req.query?.days;
   const days = daysParam === '30' ? 30 : 7;
 
-  if (!uid) {
-    res.status(400).json({ error: 'Missing uid parameter' });
+  if (!uid && !username) {
+    res.status(400).json({ error: 'Missing uid or username parameter' });
     return;
   }
 
@@ -51,6 +53,21 @@ export default async function handler(req: any, res: any) {
   try {
     const client = new BetaAnalyticsDataClient({ credentials });
 
+    // Build dimension filter:
+    // If we have a username, filter by pagePath (standard dimension, always works).
+    // Fallback: no filter (shows all data for the property).
+    const pathFilter = username ? {
+      dimensionFilter: {
+        filter: {
+          fieldName: 'pagePath',
+          stringFilter: {
+            matchType: 'BEGINS_WITH' as const,
+            value: `/${username}`,
+          },
+        },
+      },
+    } : {};
+
     // Run a batch request: one report for totals, one for the trend timeline
     const [totalsResponse, timelineResponse, sourcesResponse] = await Promise.all([
       // --- 1) Totals: views + clicks ---
@@ -58,15 +75,10 @@ export default async function handler(req: any, res: any) {
         property: `properties/${propertyId}`,
         dateRanges: [{ startDate: `${days}daysAgo`, endDate: 'today' }],
         metrics: [
-          { name: 'screenPageViews' },    // page_view events
-          { name: 'eventCount' },          // all events (including select_content/clicks)
+          { name: 'screenPageViews' },
+          { name: 'eventCount' },
         ],
-        dimensionFilter: {
-          filter: {
-            fieldName: 'customEvent:card_owner_uid',
-            stringFilter: { matchType: 'EXACT', value: uid },
-          },
-        },
+        ...pathFilter,
       }),
 
       // --- 2) Daily timeline for the chart ---
@@ -76,12 +88,7 @@ export default async function handler(req: any, res: any) {
         dimensions: [{ name: 'date' }],
         metrics: [{ name: 'screenPageViews' }, { name: 'eventCount' }],
         orderBys: [{ dimension: { dimensionName: 'date' } }],
-        dimensionFilter: {
-          filter: {
-            fieldName: 'customEvent:card_owner_uid',
-            stringFilter: { matchType: 'EXACT', value: uid },
-          },
-        },
+        ...pathFilter,
       }),
 
       // --- 3) Traffic sources ---
@@ -90,12 +97,7 @@ export default async function handler(req: any, res: any) {
         dateRanges: [{ startDate: `${days}daysAgo`, endDate: 'today' }],
         dimensions: [{ name: 'sessionDefaultChannelGroup' }],
         metrics: [{ name: 'screenPageViews' }],
-        dimensionFilter: {
-          filter: {
-            fieldName: 'customEvent:card_owner_uid',
-            stringFilter: { matchType: 'EXACT', value: uid },
-          },
-        },
+        ...pathFilter,
       }),
     ]);
 
@@ -177,7 +179,19 @@ export default async function handler(req: any, res: any) {
     });
   } catch (err: any) {
     console.error('GA4 API error:', err);
-    res.status(500).json({ error: 'Failed to fetch analytics', detail: err.message });
+    // Surface full error detail so the client can display it
+    const detail = err?.message || String(err);
+    const code = err?.code || err?.status || 'UNKNOWN';
+    res.status(500).json({
+      error: 'Failed to fetch analytics',
+      detail,
+      code,
+      hint: code === 7 || String(code) === '7'
+        ? 'PERMISSION_DENIED: The service account does not have access to this GA4 property.'
+        : code === 5 || String(code) === '5'
+        ? 'NOT_FOUND: Check that GA4_PROPERTY_ID is correct (numeric ID from GA4 Admin → Property Settings).'
+        : undefined,
+    });
   }
 }
 
