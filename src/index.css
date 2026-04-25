@@ -151,6 +151,27 @@ details.eurek-details[open] .eurek-details-body {
 .group:hover .gallery-grid-caption {
   transform: translateY(0);
 }
+/* 手機版說明始終顯示，不需要 translate 偏移 */
+@media (max-width: 1023px) {
+  .gallery-grid-caption {
+    transform: translateY(0);
+  }
+}
+
+/* 圖片元件：說明由下滑入＋淡入（與圖庫網格一致） */
+.image-caption {
+  transform: translateY(8px);
+  transition: transform 0.28s ease;
+  will-change: transform;
+}
+.group:hover .image-caption {
+  transform: translateY(0);
+}
+@media (max-width: 1023px) {
+  .image-caption {
+    transform: translateY(0);
+  }
+}
 
 @keyframes marquee {
   0% { transform: translateX(0); }

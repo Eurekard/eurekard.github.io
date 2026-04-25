@@ -560,11 +560,10 @@ function EditorGalleryPreview({
               className="h-full shrink-0"
               style={slideW > 0 ? { width: slideW, flexShrink: 0 } : { width: `${slidePct}%` }}
             >
-              <img
-                src={img.url}
-                alt={img.caption || `gallery ${i + 1}`}
-                className={cn('h-full w-full', content.fill ? 'object-cover' : 'object-contain')}
-              />
+              {img.url
+                ? <img src={img.url} alt={img.caption || `gallery ${i + 1}`} className={cn('h-full w-full', content.fill ? 'object-cover' : 'object-contain')} />
+                : <div className="h-full w-full flex flex-col items-center justify-center gap-1 opacity-30"><ImageIcon size={24} /><span className="text-[10px] font-bold">尚未新增</span></div>
+              }
             </div>
           ))}
         </motion.div>
@@ -583,7 +582,7 @@ function EditorGalleryPreview({
           </div>
         )}
 
-        <div className="p-4 flex items-center gap-3" onPointerDown={(e) => e.stopPropagation()}>
+        <div className="p-2 flex items-center gap-3" onPointerDown={(e) => e.stopPropagation()}>
           <button
             type="button"
             className="inline-flex h-11 w-11 items-center justify-center rounded-2xl cursor-pointer transition-transform hover:scale-110"
@@ -635,11 +634,14 @@ function EditorGalleryPreview({
               borderRadius: (baseComponentStyle as any)?.borderRadius ?? '1rem',
             }}
           >
-            <img src={img.url} alt={img.caption || `圖庫 ${idx + 1}`} className={cn('h-full w-full', content.fill ? 'object-cover' : 'object-contain')} />
+            {img.url
+              ? <img src={img.url} alt={img.caption || `圖庫 ${idx + 1}`} className={cn('h-full w-full', content.fill ? 'object-cover' : 'object-contain')} />
+              : <div className="h-full w-full flex flex-col items-center justify-center gap-1 opacity-30"><ImageIcon size={24} /><span className="text-[10px] font-bold">尚未新增</span></div>
+            }
             {img.caption ? (
               <div className="pointer-events-none absolute inset-x-0 bottom-0 overflow-hidden opacity-100 lg:opacity-0 transition-opacity duration-200 lg:group-hover:opacity-100">
                 <div
-                  className="gallery-grid-caption w-full px-3 py-2 text-xs font-bold line-clamp-3"
+                  className="gallery-grid-caption w-full px-3 py-2 text-xs font-bold line-clamp-3 text-left"
                   style={{
                     backgroundColor: componentBgColor,
                     color: textColor,
@@ -809,11 +811,14 @@ function ElementPreview({
   if (type === 'image') {
     return (
       <div className="relative w-full overflow-hidden rounded-[2rem] border group pointer-events-none" style={computedStyle}>
-        <img src={content.url} alt="preview" className="w-full h-auto object-cover" />
+      {content.url
+        ? <img src={content.url} alt="preview" className="w-full h-auto object-cover" />
+        : <div className="w-full aspect-video flex flex-col items-center justify-center gap-2 opacity-30"><ImageIcon size={32} /><span className="text-xs font-bold">尚未新增圖片</span></div>
+      }
         {content.caption ? (
           <div className="pointer-events-none absolute inset-x-0 bottom-0 overflow-hidden opacity-100 lg:opacity-0 transition-opacity duration-200 lg:group-hover:opacity-100">
             <div
-              className="w-full px-4 py-3 text-sm font-bold line-clamp-3"
+              className="image-caption w-full px-4 py-3 text-sm font-bold line-clamp-3"
               style={{
                 backgroundColor: computedStyle.backgroundColor,
                 color: computedStyle.color,
@@ -2282,7 +2287,7 @@ function DraggableGalleryItem({
                 <label className="block text-xs font-bold text-chocolate/40">圖片說明（可留白）</label>
                 <input value={img.caption || ''} onChange={(e) => updateImages(images.map((it, i) => i === index ? { ...it, caption: e.target.value } : it))} className="w-full p-3 bg-cream rounded-xl text-xs outline-none" />
                 <label className="block text-xs font-bold text-chocolate/40">圖片連結</label>
-                <input value={img.link || ''} onChange={(e) => updateImages(images.map((it, i) => i === index ? { ...it, link: e.target.value } : it))} onBlur={(e) => { const raw = e.target.value.trim(); if (!raw) return; updateImages(images.map((it, i) => i === index ? { ...it, link: normalizeLinkTarget(raw) } : it)); }} className="w-full p-3 bg-cream rounded-xl text-xs outline-none" placeholder="輸入區段鵚點或網址" />
+                <input value={img.link || ''} onChange={(e) => updateImages(images.map((it, i) => i === index ? { ...it, link: e.target.value } : it))} onBlur={(e) => { const raw = e.target.value.trim(); if (!raw) return; updateImages(images.map((it, i) => i === index ? { ...it, link: normalizeLinkTarget(raw) } : it)); }} className="w-full p-3 bg-cream rounded-xl text-xs outline-none" placeholder="輸入區段錨點或網址" />
                 <button type="button" title="刪除此圖" onClick={() => { updateImages(images.filter((_: any, i: number) => i !== index)); setExpandedKey(null); }} className="w-full h-10 inline-flex items-center justify-center gap-2 bg-red-50 text-red-500 rounded-xl text-xs font-black">
                   <Trash2 size={16} />
                 </button>

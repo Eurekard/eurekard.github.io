@@ -4,7 +4,7 @@ import { db } from '../lib/firebase';
 import { doc, getDoc, collection, addDoc, query, onSnapshot, where } from 'firebase/firestore';
 import { CardData, AnonResponse } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
-import { Heart, Send, ExternalLink, MessageSquare, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Heart, Send, ExternalLink, MessageSquare, Eye, ChevronLeft, ChevronRight, Image as ImageIcon } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { buildEmbedHtmlFromUrl } from '../lib/embed';
 import MusicPlayer from '../components/MusicPlayer';
@@ -604,10 +604,10 @@ function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, se
         {content.caption ? (
           <div className="pointer-events-none absolute inset-x-0 bottom-0 overflow-hidden opacity-100 lg:opacity-0 transition-opacity duration-200 lg:group-hover:opacity-100">
             <div
-              className="w-full px-4 py-3 text-sm font-bold line-clamp-3"
+              className="image-caption w-full px-4 py-3 text-sm font-bold line-clamp-3"
               style={{
-                backgroundColor: globalStyles?.componentBackgroundColor,
-                color: globalStyles?.textColor,
+                backgroundColor: computedStyle.backgroundColor,
+                color: computedStyle.color,
               }}
             >
               {content.caption}
@@ -667,7 +667,7 @@ function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, se
           label={content.label || '下拉選單'}
           items={items}
           textColor={globalStyles?.textColor}
-          itemBackgroundColor={globalStyles?.componentBackgroundColor}
+          itemBackgroundColor={computedStyle.backgroundColor as string}
           onTrackClick={() => void onTrackClick(el.id)}
           onHashNavigate={onHashNavigate}
         />
@@ -800,7 +800,7 @@ function GalleryBlock({
     const trackWidth = slideW > 0 ? n * slideW : undefined;
 
     const media = (
-      <div ref={viewportRef} className="relative aspect-square w-full overflow-hidden bg-black/5">
+      <div ref={viewportRef} className="relative aspect-square w-full overflow-hidden">
         <motion.div
           className="flex h-full"
           animate={{ x: xPos }}
@@ -816,11 +816,10 @@ function GalleryBlock({
               className="h-full shrink-0"
               style={slideW > 0 ? { width: slideW, flexShrink: 0 } : { width: `${slidePct}%` }}
             >
-              <img
-                src={img.url}
-                alt={img.caption || `gallery ${i + 1}`}
-                className={cn('h-full w-full', content.fill ? 'object-cover' : 'object-contain')}
-              />
+              {img.url
+                ? <img src={img.url} alt={img.caption || `gallery ${i + 1}`} className={cn('h-full w-full', content.fill ? 'object-cover' : 'object-contain')} />
+                : <div className="h-full w-full flex flex-col items-center justify-center gap-1 opacity-30"><ImageIcon size={24} /><span className="text-[10px] font-bold">尚未新增</span></div>
+              }
             </div>
           ))}
         </motion.div>
@@ -845,7 +844,7 @@ function GalleryBlock({
           {media}
         </div>
 
-        <div className="p-4 flex items-center gap-3">
+        <div className="p-2 flex items-center gap-3">
           <button
             type="button"
             className="inline-flex h-11 w-11 items-center justify-center rounded-2xl cursor-pointer transition-transform hover:scale-110"
@@ -890,7 +889,7 @@ function GalleryBlock({
         const hashLink = isHashLink(url);
         const inner = (
           <div
-            className="relative aspect-square w-full overflow-hidden bg-black/5 group"
+            className="relative aspect-square w-full overflow-hidden group"
             style={{
               borderColor,
               borderWidth: (baseComponentStyle as any)?.borderWidth ?? 3,
@@ -898,15 +897,14 @@ function GalleryBlock({
               borderRadius: (baseComponentStyle as any)?.borderRadius ?? '1rem',
             }}
           >
-            <img
-              src={img.url}
-              alt={img.caption || `圖庫 ${idx + 1}`}
-              className={cn('h-full w-full', content.fill ? 'object-cover' : 'object-contain')}
-            />
+            {img.url
+              ? <img src={img.url} alt={img.caption || `圖庫 ${idx + 1}`} className={cn('h-full w-full', content.fill ? 'object-cover' : 'object-contain')} />
+              : <div className="h-full w-full flex flex-col items-center justify-center gap-1 opacity-30"><ImageIcon size={24} /><span className="text-[10px] font-bold">尚未新增</span></div>
+            }
             {img.caption ? (
               <div className="pointer-events-none absolute inset-x-0 bottom-0 overflow-hidden opacity-100 lg:opacity-0 transition-opacity duration-200 lg:group-hover:opacity-100">
                 <div
-                  className="gallery-grid-caption w-full px-3 py-2 text-xs font-bold line-clamp-3"
+                  className="gallery-grid-caption w-full px-3 py-2 text-xs font-bold line-clamp-3 text-left"
                   style={{
                     backgroundColor: componentBgColor,
                     color: textColor,
