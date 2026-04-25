@@ -2,14 +2,17 @@
  * api/analytics-report.ts
  * Vercel Serverless Function – GA4 Data API proxy.
  *
- * GET /api/analytics-report?uid=<cardOwnerUid>&days=7|30
+ * GET /api/analytics-report?uid=<cardOwnerUid>&days=7|30&username=<username>
  *
- * Required environment variables (set in Vercel dashboard):
- *   GA4_PROPERTY_ID       – numeric property ID (e.g. "123456789")
- *   GA4_SERVICE_ACCOUNT_JSON – full contents of the service account JSON key file
+ * Returns:
+ *   - realtimeViews / realtimeActiveUsers  (last 30 min, from runRealtimeReport)
+ *   - views / clicks                       (historical totals, from runReport, 24-48h delay)
+ *   - trend[]                              (daily breakdown, from runReport)
+ *   - sources[]                            (traffic channels, from runReport)
  *
- * The service account must have the role:
- *   "Viewer" on the GA4 property  (GA4 > Admin > Property Access Management)
+ * Required environment variables (Vercel dashboard):
+ *   GA4_PROPERTY_ID          – numeric property ID (e.g. "534431559")
+ *   GA4_SERVICE_ACCOUNT_JSON – full JSON key file contents
  */
 
 import { BetaAnalyticsDataClient } from '@google-analytics/data';
@@ -21,14 +24,12 @@ function getRequiredEnv(name: string): string {
 }
 
 export default async function handler(req: any, res: any) {
-  // Only allow GET
   if (req.method !== 'GET') {
     res.status(405).json({ error: 'Method not allowed' });
     return;
   }
 
   const uid = typeof req.query?.uid === 'string' ? req.query.uid.trim() : '';
-  // username is used to filter by pagePath (standard GA4 dimension, no custom registration needed)
   const username = typeof req.query?.username === 'string' ? req.query.username.trim() : '';
   const daysParam = req.query?.days;
   const days = daysParam === '30' ? 30 : 7;
@@ -52,38 +53,32 @@ export default async function handler(req: any, res: any) {
 
   try {
     const client = new BetaAnalyticsDataClient({ credentials });
+    const property = `properties/${propertyId}`;
 
-    // Build dimension filter:
-    // If we have a username, filter by pagePath (standard dimension, always works).
-    // Fallback: no filter (shows all data for the property).
+    // pagePath filter (standard dimension, works without custom registration)
     const pathFilter = username ? {
       dimensionFilter: {
         filter: {
           fieldName: 'pagePath',
-          stringFilter: {
-            matchType: 'BEGINS_WITH' as const,
-            value: `/${username}`,
-          },
+          stringFilter: { matchType: 'BEGINS_WITH' as const, value: `/${username}` },
         },
       },
     } : {};
 
-    // Run a batch request: one report for totals, one for the trend timeline
-    const [totalsResponse, timelineResponse, sourcesResponse] = await Promise.all([
-      // --- 1) Totals: views + clicks ---
+    // ── Run all reports in parallel ─────────────────────────────────────────
+    const [totalsRes, timelineRes, sourcesRes, realtimeRes] = await Promise.all([
+
+      // 1) Historical totals (24-48h delay, covers full period)
       client.runReport({
-        property: `properties/${propertyId}`,
+        property,
         dateRanges: [{ startDate: `${days}daysAgo`, endDate: 'today' }],
-        metrics: [
-          { name: 'screenPageViews' },
-          { name: 'eventCount' },
-        ],
+        metrics: [{ name: 'screenPageViews' }, { name: 'eventCount' }],
         ...pathFilter,
       }),
 
-      // --- 2) Daily timeline for the chart ---
+      // 2) Daily trend timeline
       client.runReport({
-        property: `properties/${propertyId}`,
+        property,
         dateRanges: [{ startDate: `${days}daysAgo`, endDate: 'today' }],
         dimensions: [{ name: 'date' }],
         metrics: [{ name: 'screenPageViews' }, { name: 'eventCount' }],
@@ -91,95 +86,104 @@ export default async function handler(req: any, res: any) {
         ...pathFilter,
       }),
 
-      // --- 3) Traffic sources ---
+      // 3) Traffic channel sources
       client.runReport({
-        property: `properties/${propertyId}`,
+        property,
         dateRanges: [{ startDate: `${days}daysAgo`, endDate: 'today' }],
         dimensions: [{ name: 'sessionDefaultChannelGroup' }],
         metrics: [{ name: 'screenPageViews' }],
         ...pathFilter,
       }),
+
+      // 4) Realtime report – last 30 minutes (no delay!)
+      // Uses runRealtimeReport which refreshes every ~5 minutes
+      client.runRealtimeReport({
+        property,
+        metrics: [
+          { name: 'activeUsers' },        // users active right now
+          { name: 'screenPageViews' },    // page views in last 30 min
+          { name: 'eventCount' },         // all events in last 30 min
+        ],
+        ...(username ? {
+          dimensionFilter: {
+            filter: {
+              fieldName: 'unifiedPageScreen',
+              stringFilter: { matchType: 'BEGINS_WITH' as const, value: `/${username}` },
+            },
+          },
+        } : {}),
+      }),
     ]);
 
-    // Parse totals
-    const totalsRow = totalsResponse[0]?.rows?.[0];
+    // ── Parse historical totals ──────────────────────────────────────────────
+    const totalsRow = totalsRes[0]?.rows?.[0];
     const totalViews = parseInt(totalsRow?.metricValues?.[0]?.value || '0', 10);
     const totalAllEvents = parseInt(totalsRow?.metricValues?.[1]?.value || '0', 10);
-    // Clicks = all events minus page_view events
     const totalClicks = Math.max(0, totalAllEvents - totalViews);
 
-    // Parse daily timeline
-    const trend = (timelineResponse[0]?.rows || []).map((row) => {
-      const rawDate = row.dimensionValues?.[0]?.value || ''; // YYYYMMDD
-      const views = parseInt(row.metricValues?.[0]?.value || '0', 10);
-      const allEvts = parseInt(row.metricValues?.[1]?.value || '0', 10);
-      const clicks = Math.max(0, allEvts - views);
-      // Format as M/D
-      const y = rawDate.slice(0, 4);
+    // ── Parse realtime stats ─────────────────────────────────────────────────
+    const rtRow = realtimeRes[0]?.rows?.[0];
+    const realtimeActiveUsers = parseInt(rtRow?.metricValues?.[0]?.value || '0', 10);
+    const realtimeViews = parseInt(rtRow?.metricValues?.[1]?.value || '0', 10);
+    const realtimeAllEvents = parseInt(rtRow?.metricValues?.[2]?.value || '0', 10);
+    const realtimeClicks = Math.max(0, realtimeAllEvents - realtimeViews);
+
+    // ── Parse daily trend ────────────────────────────────────────────────────
+    const trend = (timelineRes[0]?.rows || []).map((row) => {
+      const rawDate = row.dimensionValues?.[0]?.value || '';
+      const v = parseInt(row.metricValues?.[0]?.value || '0', 10);
+      const a = parseInt(row.metricValues?.[1]?.value || '0', 10);
       const m = rawDate.slice(4, 6);
       const d = rawDate.slice(6, 8);
-      return { name: `${parseInt(m)}/${parseInt(d)}`, date: `${y}-${m}-${d}`, views, clicks };
+      const y = rawDate.slice(0, 4);
+      return { name: `${parseInt(m)}/${parseInt(d)}`, date: `${y}-${m}-${d}`, views: v, clicks: Math.max(0, a - v) };
     });
 
-    // Fill in missing days with zeroes
     const filledTrend = buildFilledDays(days, trend);
 
-    // Parse traffic sources
+    // ── Parse traffic sources ────────────────────────────────────────────────
     const GA4_SOURCE_MAP: Record<string, string> = {
-      'Organic Search': 'search',
-      'Paid Search': 'search',
-      'Direct': 'direct',
-      'Organic Social': 'social',
-      'Paid Social': 'social',
-      'Referral': 'referral',
-      'Email': 'referral',
-      '(Other)': 'unknown',
+      'Organic Search': 'search', 'Paid Search': 'search',
+      'Direct': 'direct', 'Organic Social': 'social', 'Paid Social': 'social',
+      'Referral': 'referral', 'Email': 'referral', '(Other)': 'unknown',
     };
-
-    const sourceAccum: Record<string, number> = {
-      direct: 0, social: 0, search: 0, referral: 0, unknown: 0,
-    };
-
-    (sourcesResponse[0]?.rows || []).forEach((row) => {
-      const ga4Channel = row.dimensionValues?.[0]?.value || '';
-      const count = parseInt(row.metricValues?.[0]?.value || '0', 10);
-      const key = GA4_SOURCE_MAP[ga4Channel] || 'unknown';
-      sourceAccum[key] = (sourceAccum[key] || 0) + count;
+    const sourceAccum: Record<string, number> = { direct: 0, social: 0, search: 0, referral: 0, unknown: 0 };
+    (sourcesRes[0]?.rows || []).forEach((row) => {
+      const ch = row.dimensionValues?.[0]?.value || '';
+      const cnt = parseInt(row.metricValues?.[0]?.value || '0', 10);
+      const key = GA4_SOURCE_MAP[ch] || 'unknown';
+      sourceAccum[key] = (sourceAccum[key] || 0) + cnt;
     });
 
-    const totalSourceViews = Object.values(sourceAccum).reduce((a, b) => a + b, 0);
-    const SOURCE_LABEL_MAP: Record<string, string> = {
-      direct: '直接流量', social: '社群來源', search: '搜尋引擎',
-      referral: '引薦網站', unknown: '其他',
-    };
-    const SOURCE_COLOR_MAP: Record<string, string> = {
-      direct: 'bg-cat-blue', social: 'bg-pink-400', search: 'bg-chocolate',
-      referral: 'bg-blue-600', unknown: 'bg-gray-400',
-    };
+    const totalSrcViews = Object.values(sourceAccum).reduce((a, b) => a + b, 0);
+    const SOURCE_LABEL: Record<string, string> = { direct: '直接流量', social: '社群來源', search: '搜尋引擎', referral: '引薦網站', unknown: '其他' };
+    const SOURCE_COLOR: Record<string, string> = { direct: 'bg-cat-blue', social: 'bg-pink-400', search: 'bg-chocolate', referral: 'bg-blue-600', unknown: 'bg-gray-400' };
 
     const sources = Object.entries(sourceAccum)
-      .filter(([, count]) => count > 0)
+      .filter(([, c]) => c > 0)
       .sort(([, a], [, b]) => b - a)
-      .map(([key, count]) => ({
-        label: SOURCE_LABEL_MAP[key],
-        percentage: totalSourceViews > 0 ? Math.round((count / totalSourceViews) * 100) : 0,
-        color: SOURCE_COLOR_MAP[key],
+      .map(([k, c]) => ({
+        label: SOURCE_LABEL[k],
+        percentage: totalSrcViews > 0 ? Math.round((c / totalSrcViews) * 100) : 0,
+        color: SOURCE_COLOR[k],
       }));
 
     res.status(200).json({
+      // Historical (24-48h delay)
       views: totalViews,
       clicks: totalClicks,
       trend: filledTrend,
       sources: sources.length > 0 ? sources : [{ label: '直接流量', percentage: 0, color: 'bg-cat-blue' }],
-      // GA4 does not provide device breakdown per custom dimension easily without additional reports
-      // Using placeholder; extend later if needed
       desktopRate: 0,
       mobileRate: 0,
-      dataDelayNote: 'GA4 data may be delayed 24-48h',
+      // Realtime (last 30 min, ~5 min freshness)
+      realtimeViews,
+      realtimeClicks,
+      realtimeActiveUsers,
+      dataDelayNote: 'Historical data delayed 24-48h; realtime stats reflect last 30 minutes',
     });
   } catch (err: any) {
     console.error('GA4 API error:', err);
-    // Surface full error detail so the client can display it
     const detail = err?.message || String(err);
     const code = err?.code || err?.status || 'UNKNOWN';
     res.status(500).json({
@@ -189,17 +193,15 @@ export default async function handler(req: any, res: any) {
       hint: code === 7 || String(code) === '7'
         ? 'PERMISSION_DENIED: The service account does not have access to this GA4 property.'
         : code === 5 || String(code) === '5'
-        ? 'NOT_FOUND: Check that GA4_PROPERTY_ID is correct (numeric ID from GA4 Admin → Property Settings).'
+        ? 'NOT_FOUND: Check GA4_PROPERTY_ID is correct (numeric ID from GA4 Admin → Property Settings).'
         : undefined,
     });
   }
 }
 
-/** Fill in zeroes for any days missing from the GA4 response */
 function buildFilledDays(days: number, trend: { name: string; date: string; views: number; clicks: number }[]) {
   const result: { name: string; views: number; clicks: number }[] = [];
-  const dataByDate = new Map(trend.map((t) => [t.date, t]));
-
+  const byDate = new Map(trend.map((t) => [t.date, t]));
   const now = new Date();
   for (let i = days - 1; i >= 0; i--) {
     const d = new Date(now);
@@ -207,13 +209,9 @@ function buildFilledDays(days: number, trend: { name: string; date: string; view
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
-    const dateKey = `${y}-${m}-${day}`;
-    const entry = dataByDate.get(dateKey);
-    result.push({
-      name: `${parseInt(m)}/${parseInt(day)}`,
-      views: entry?.views ?? 0,
-      clicks: entry?.clicks ?? 0,
-    });
+    const key = `${y}-${m}-${day}`;
+    const e = byDate.get(key);
+    result.push({ name: `${parseInt(m)}/${parseInt(day)}`, views: e?.views ?? 0, clicks: e?.clicks ?? 0 });
   }
   return result;
 }

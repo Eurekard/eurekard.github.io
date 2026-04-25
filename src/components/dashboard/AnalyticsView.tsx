@@ -16,6 +16,10 @@ type AnalyticsReport = {
   trend: TrendPoint[];
   sources: SourceRow[];
   dataDelayNote?: string;
+  // Realtime (last 30 min, ~5 min freshness)
+  realtimeViews: number;
+  realtimeClicks: number;
+  realtimeActiveUsers: number;
 };
 
 export default function AnalyticsView({ cardId, username }: { cardId: string; username?: string }) {
@@ -24,6 +28,14 @@ export default function AnalyticsView({ cardId, username }: { cardId: string; us
   const [error, setError] = useState<string | null>(null);
   const [rangeDays, setRangeDays] = useState<7 | 30>(7);
   const [responseCount, setResponseCount] = useState(0);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+
+  // Auto-refresh every 5 minutes (matching GA4 realtime update cadence)
+  useEffect(() => {
+    const interval = setInterval(() => fetchReport(), 5 * 60 * 1000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cardId, rangeDays]);
 
   // Response count stays real-time via Firestore (unrelated to traffic analytics)
   useEffect(() => {
@@ -43,7 +55,7 @@ export default function AnalyticsView({ cardId, username }: { cardId: string; us
         d.setDate(now.getDate() - i);
         days.push({ name: `${d.getMonth() + 1}/${d.getDate()}`, views: 0, clicks: 0 });
       }
-      setReport({ views: 0, clicks: 0, desktopRate: 0, mobileRate: 0, trend: days, sources: [{ label: '直接流量', percentage: 0, color: 'bg-cat-blue' }] });
+      setReport({ views: 0, clicks: 0, desktopRate: 0, mobileRate: 0, trend: days, sources: [{ label: '直接流量', percentage: 0, color: 'bg-cat-blue' }], realtimeViews: 0, realtimeClicks: 0, realtimeActiveUsers: 0 });
       return;
     }
 
@@ -61,6 +73,7 @@ export default function AnalyticsView({ cardId, username }: { cardId: string; us
       }
       const data: AnalyticsReport = await res.json();
       setReport(data);
+      setLastUpdated(new Date());
     } catch (err: any) {
       setError(err.message || 'Failed to load analytics');
     } finally {
@@ -84,6 +97,13 @@ export default function AnalyticsView({ cardId, username }: { cardId: string; us
   const mobileRate = report?.mobileRate ?? 0;
   const trend = report?.trend ?? [];
   const sources = report?.sources ?? [{ label: '直接流量', percentage: 0, color: 'bg-cat-blue' }];
+  const realtimeViews = report?.realtimeViews ?? 0;
+  const realtimeClicks = report?.realtimeClicks ?? 0;
+  const realtimeActiveUsers = report?.realtimeActiveUsers ?? 0;
+
+  const updatedStr = lastUpdated
+    ? `${lastUpdated.getHours().toString().padStart(2,'0')}:${lastUpdated.getMinutes().toString().padStart(2,'0')}`
+    : null;
 
   return (
     <div className="p-8 max-w-6xl mx-auto space-y-8">
@@ -94,9 +114,17 @@ export default function AnalyticsView({ cardId, username }: { cardId: string; us
           數據來源：<span className="font-bold text-chocolate">Google Analytics 4</span>
           <span className="text-chocolate/50 ml-2">（已過濾機器人流量）</span>
         </span>
-        {report?.dataDelayNote && (
-          <span className="ml-auto text-[11px] text-chocolate/40 hidden sm:block shrink-0">※ 資料延遲最多 48h</span>
-        )}
+        <div className="ml-auto flex items-center gap-3 shrink-0">
+          {!loading && realtimeActiveUsers > 0 && (
+            <span className="flex items-center gap-1.5 text-[11px] font-bold text-green-600 bg-green-50 px-2 py-1 rounded-lg">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+              {realtimeActiveUsers} 人在線
+            </span>
+          )}
+          {updatedStr && (
+            <span className="text-[11px] text-chocolate/40 hidden sm:block">更新於 {updatedStr}</span>
+          )}
+        </div>
       </div>
 
       {/* Error State */}
@@ -113,12 +141,33 @@ export default function AnalyticsView({ cardId, username }: { cardId: string; us
         </div>
       )}
 
-      {/* Stat Cards */}
+      {/* Stat Cards – show realtime numbers (last 30 min) */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard icon={<Eye className="text-cat-blue" />} label="總瀏覽量" value={loading ? '—' : views.toLocaleString()} />
-        <StatCard icon={<MousePointer2 className="text-pink-400" />} label="總點擊數" value={loading ? '—' : clicks.toLocaleString()} sub={loading ? undefined : `CTR ${ctr}%`} />
-        <StatCard icon={<Monitor className="text-chocolate/60" />} label="桌面端" value={loading ? '—' : `${desktopRate}%`} />
-        <StatCard icon={<Smartphone className="text-chocolate/60" />} label="行動端" value={loading ? '—' : `${mobileRate}%`} sub={`回應 ${responseCount} 則`} />
+        <StatCard
+          icon={<Eye className="text-cat-blue" />}
+          label="過去 30 分鐘瀏覽"
+          value={loading ? '—' : realtimeViews.toLocaleString()}
+          badge="即時"
+          sub={`累計 ${views.toLocaleString()} 次`}
+        />
+        <StatCard
+          icon={<MousePointer2 className="text-pink-400" />}
+          label="過去 30 分鐘點擊"
+          value={loading ? '—' : realtimeClicks.toLocaleString()}
+          badge="即時"
+          sub={loading ? undefined : `CTR ${ctr}%`}
+        />
+        <StatCard
+          icon={<Monitor className="text-chocolate/60" />}
+          label="桌面端"
+          value={loading ? '—' : `${desktopRate}%`}
+        />
+        <StatCard
+          icon={<Smartphone className="text-chocolate/60" />}
+          label="行動端"
+          value={loading ? '—' : `${mobileRate}%`}
+          sub={`回應 ${responseCount} 則`}
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -191,12 +240,20 @@ export default function AnalyticsView({ cardId, username }: { cardId: string; us
   );
 }
 
-function StatCard({ icon, label, value, change, sub }: any) {
+function StatCard({ icon, label, value, change, sub, badge }: any) {
   return (
     <div className="bg-white p-6 rounded-[2.5rem] border border-chocolate/5 soft-shadow flex flex-col gap-2">
       <div className="flex items-center justify-between mb-2">
         <div className="p-2 bg-cream rounded-xl">{icon}</div>
-        {change && <span className="text-xs font-bold text-green-500 bg-green-50 px-2 py-1 rounded-lg">{change}</span>}
+        <div className="flex items-center gap-1.5">
+          {badge && (
+            <span className="flex items-center gap-1 text-[10px] font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded-md">
+              <span className="w-1 h-1 rounded-full bg-green-500 animate-pulse" />
+              {badge}
+            </span>
+          )}
+          {change && <span className="text-xs font-bold text-green-500 bg-green-50 px-2 py-1 rounded-lg">{change}</span>}
+        </div>
       </div>
       <div className="text-chocolate/60 text-sm font-bold">{label}</div>
       <div className="text-3xl font-display font-bold text-chocolate">{value}</div>
