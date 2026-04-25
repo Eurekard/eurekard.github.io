@@ -275,7 +275,7 @@ export default function Profile() {
   if (loading) {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-cream">
-        <div className="w-16 h-16 border-3 border-cat-blue border-t-transparent rounded-full animate-spin"></div>
+        <div className="w-16 h-16 border border-cat-blue border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
   }
@@ -321,8 +321,7 @@ export default function Profile() {
       >
         {/* Profile Header */}
         <div className="text-center mb-12">
-          <motion.div
-            whileHover={{ scale: 1.05 }}
+          <div
             className="w-32 h-32 mx-auto mb-6 relative overflow-hidden"
             style={(() => {
               const avatarComputed = resolveElementStyle(globalStyles.avatarStyle, globalStyles);
@@ -348,7 +347,7 @@ export default function Profile() {
                 return { borderRadius: `calc(${num}px - 6px)` };
               })()}
             />
-          </motion.div>
+          </div>
           <div className="space-y-1">
             <h1 style={{ color: globalStyles.textColor, fontFamily: 'inherit' }} className="text-3xl font-black tracking-tight group flex items-center justify-center gap-1">
               {data.profile?.displayName || username}
@@ -359,7 +358,7 @@ export default function Profile() {
         {/* Dynamic Content */}
         <div className="space-y-6">
           {!hasAnyVisibleContent && (
-            <div className="text-center py-20 text-chocolate/20 font-bold uppercase tracking-widest bg-white/20 rounded-[2rem] border-3 border-dashed border-chocolate/5">
+            <div className="text-center py-20 text-chocolate/20 font-bold uppercase tracking-widest bg-white/20 rounded-[2rem] border border-dashed border-chocolate/5">
               這裡目前還沒有任何內容...
             </div>
           )}
@@ -433,7 +432,7 @@ export default function Profile() {
 
         {/* Footer */}
         <footer className="mt-20 text-center space-y-6">
-          <Link to="/" className="inline-flex items-center gap-2 px-6 py-3 bg-white/50 backdrop-blur-md rounded-full border-3 border-white/50 text-xs font-black text-chocolate uppercase tracking-widest hover:bg-white transition-all">
+          <Link to="/" className="inline-flex items-center gap-2 px-6 py-3 bg-white/50 backdrop-blur-md rounded-full border border-white/50 text-xs font-black text-chocolate uppercase tracking-widest hover:bg-white transition-all">
             <LightbulbLogo />
             使用尤里卡製作
           </Link>
@@ -471,7 +470,7 @@ function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, se
       <div
         style={computedStyle}
         className={cn(
-          "font-bold leading-tight mx-auto p-5 border-3 rounded-[2rem] w-full",
+          "font-bold leading-tight mx-auto p-5 border rounded-[2rem] w-full",
           alignClass,
           ({ sm: 'text-sm', md: 'text-base', lg: 'text-lg', '6xl': 'text-4xl md:text-5xl font-black' } as Record<string, string>)[content.size as string] ?? 'text-base'
         )}
@@ -503,7 +502,7 @@ function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, se
         target={hashLink ? undefined : '_blank'}
         rel={hashLink ? undefined : 'noopener noreferrer'}
         style={{ ...computedStyle, willChange: 'transform' }}
-        className="w-full p-5 border-3 rounded-[2rem] font-bold flex items-center justify-between group"
+        className="w-full p-5 border rounded-[2rem] font-bold flex items-center justify-between group"
       >
         <div className="flex items-center gap-4">
           <div className="w-10 h-10 rounded-2xl flex items-center justify-center text-2xl transition-colors">
@@ -519,7 +518,7 @@ function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, se
     return (
       <div
         style={computedStyle}
-        className="w-full p-8 rounded-[2rem] border-3 space-y-4 relative overflow-hidden group"
+        className="w-full p-8 rounded-[2rem] border space-y-4 relative overflow-hidden group"
       >
         <div className="absolute -top-10 -right-10 opacity-10 rotate-12 transition-transform duration-1000 group-hover:scale-150">
           <MessageSquare size={120} />
@@ -539,7 +538,7 @@ function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, se
             onChange={(e) => setAnonMessage(e.target.value)}
             rows={3}
             style={{ borderColor: globalStyles?.componentBorderColor, color: globalStyles?.componentColor }}
-            className="w-full bg-white/30 border-3 rounded-2xl p-5 outline-none focus:ring-2 placeholder:text-current/40 text-current resize-none"
+            className="w-full bg-white/30 border rounded-2xl p-5 outline-none focus:ring-2 placeholder:text-current/40 text-current resize-none"
           />
           <button
             onClick={onSendAnon}
@@ -571,7 +570,7 @@ function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, se
                   <div
                     key={row.id}
                     style={{ borderColor: globalStyles?.componentBorderColor, color: globalStyles?.componentColor }}
-                    className="rounded-2xl bg-white/10 border-3 p-4 space-y-2"
+                    className="rounded-2xl bg-white/10 border p-4 space-y-2"
                   >
                     <div
                       className="text-[11px]"
@@ -596,7 +595,7 @@ function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, se
     const url = rawLink ? normalizeLinkTarget(rawLink) : '';
     const hashLink = isHashLink(url);
     const inner = (
-      <div className="relative w-full overflow-hidden rounded-[2rem] border-3 group" style={{ ...computedStyle }}>
+      <div className="relative w-full overflow-hidden rounded-[2rem] border group" style={{ ...computedStyle }}>
         <img
           src={content.url}
           alt={content.caption || "card image"}
@@ -663,7 +662,7 @@ function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, se
   if (type === 'dropdown') {
     const items = Array.isArray(content.items) ? content.items : [];
     return (
-      <div style={computedStyle} className="w-full p-5 rounded-[2rem] border-3">
+      <div style={computedStyle} className="w-full p-5 rounded-[2rem] border">
         <AnimatedDropdown
           label={content.label || '下拉選單'}
           items={items}
@@ -684,7 +683,7 @@ function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, se
           <span
             key={`tag-public-${index}`}
             style={computedStyle}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full border-3 text-sm font-medium"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full border text-sm font-medium"
           >
             {item.icon ? <span>{item.icon}</span> : null}
             <span>{item.text || `標籤 ${index + 1}`}</span>
@@ -829,7 +828,7 @@ function GalleryBlock({
     );
 
     return (
-      <div style={{ ...baseComponentStyle, ...visualStyle, borderColor }} className="w-full rounded-[2rem] border-3 overflow-hidden">
+      <div style={{ ...baseComponentStyle, ...visualStyle, borderColor }} className="w-full rounded-[2rem] border overflow-hidden">
         {/* Always use div wrapper so motion.div inside never remounts on slide changes */}
         <div
           className={cn('block w-full', url && 'cursor-pointer')}
@@ -967,7 +966,7 @@ function CountdownDisplay({ title, targetAt, style }: { title?: string; targetAt
   const secs = Math.floor((diff / 1000) % 60);
 
   return (
-    <div style={style} className="w-full rounded-[2rem] border-3 p-5 text-center font-bold">
+    <div style={style} className="w-full rounded-[2rem] border p-5 text-center font-bold">
       <div className="text-sm opacity-70">{title || '活動倒數'}</div>
       <div className="flex items-baseline justify-center">
         {[{ v: days, u: '天' }, { v: hours, u: '時' }, { v: mins, u: '分' }, { v: secs, u: '秒' }].map((t, i) => (

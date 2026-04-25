@@ -13,6 +13,7 @@ import { buildEmbedHtmlFromUrl } from '../../lib/embed';
 import MusicPlayer from '../../components/MusicPlayer';
 import { MoodCounter, VisitorCounter } from '../../components/ElementCounters';
 import { DEFAULT_PALETTE, normalizeLinkTarget, resolveElementStyle, resolveGlobalStyles, toElementStyle, toGlobalPageStyle } from '../../lib/cardStyle';
+import { useToast } from '../../context/ToastContext';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 import EmojiPicker from 'emoji-picker-react';
@@ -40,6 +41,7 @@ const ELEMENT_TYPES = [
 
 export default function EditorView({ cardData, ownerUid }: { cardData: CardData; ownerUid: string | null }) {
   const { user } = useAuth();
+  const { showToast } = useToast();
   const [elements, setElements] = useState<CardElement[]>(cardData?.draft_content?.elements || []);
   const [globalStyles, setGlobalStyles] = useState<GlobalDesignStyles>(resolveGlobalStyles(cardData?.draft_content?.styles));
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -78,7 +80,7 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
       const exists = elements.some(el => el.type === type);
       if (exists) {
         const label = type === 'visitor' ? '訪客計數器' : '匿名箱';
-        alert(`${label}只能有一個！`);
+        showToast(`${label}只能有一個！`, 'warning');
         return;
       }
     }
@@ -109,7 +111,7 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
         );
         if (!hasDuplicate) return merged;
 
-        alert(nextKind === 'header' ? '頁首區段只能有一個，已改回一般區段。' : '頁腳區段只能有一個，已改回一般區段。');
+        showToast(nextKind === 'header' ? '頁首區段只能有一個，已改回一般區段。' : '頁腳區段只能有一個，已改回一般區段。', 'warning');
         return {
           ...merged,
           content: {
@@ -152,11 +154,11 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
         },
         updatedAt: new Date().toISOString()
       }, { merge: true });
-      alert('已成功保存並發布！');
+      showToast('已成功保存並發布！', 'success');
     } catch (err) {
       console.error('Save failed:', err);
       const e = err as { code?: string; message?: string };
-      alert(`保存失敗：${e.code || 'unknown'}${e.message ? `\n${e.message}` : ''}`);
+      showToast(`保存失敗：${e.code || 'unknown'}`, 'error');
     } finally {
       setSaving(false);
     }
@@ -195,7 +197,7 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
       >
         <div className="w-full max-w-[480px] mx-auto">
           <div
-            className="text-center mb-12 cursor-pointer transition-transform hover:scale-105 active:scale-95"
+            className="text-center mb-12 cursor-pointer"
             onClick={(e) => { e.stopPropagation(); setSelectedId('profile'); setInspectorOpenId('profile'); }}
           >
             <motion.div
@@ -240,7 +242,7 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
             className="space-y-6 pb-32" // extra padding for bottom FABs
           >
             {elements.length === 0 && (
-              <div className="text-center py-20 text-chocolate/20 font-bold uppercase tracking-widest bg-white/20 rounded-[2rem] border-3 border-dashed border-chocolate/5">
+              <div className="text-center py-20 text-chocolate/20 font-bold uppercase tracking-widest bg-white/20 rounded-[2rem] border border-dashed border-chocolate/5">
                 這裡目前還沒有任何內容...
               </div>
             )}
@@ -265,18 +267,15 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
                         const uniqueTypes = ['visitor', 'anon_box'];
                         if (uniqueTypes.includes(el.type)) {
                           const label = el.type === 'visitor' ? '訪客計數器' : '匿名箱';
-                          alert(`${label}只能有一個，無法複製！`);
+                          showToast(`${label}只能有一個，無法複製！`, 'warning');
                           return;
                         }
-                        // section header/footer 限制
+                        // section header/footer 限制：這兩種只能各有一個，複製必然會產生第二個，直接阻止
                         if (el.type === 'section') {
                           const kind = el.content?.kind;
                           if (kind === 'header' || kind === 'footer') {
-                            const already = elements.some(e => e.id !== el.id && e.type === 'section' && e.content?.kind === kind);
-                            if (already) {
-                              alert(`${kind === 'header' ? '頁首' : '頁腳'}區段只能有一個，無法複製！`);
-                              return;
-                            }
+                            showToast(`${kind === 'header' ? '頁首' : '頁腳'}區段只能有一個，無法複製！`, 'warning');
+                            return;
                           }
                         }
                         const newElement = {
@@ -334,6 +333,12 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
       </div>
 
       {/* Left Drawer: Add Elements */}
+      {isAddDrawerOpen && (
+        <div
+          className="fixed inset-0 z-40"
+          onClick={() => setIsAddDrawerOpen(false)}
+        />
+      )}
       <AnimatePresence>
         {isAddDrawerOpen && (
           <motion.aside
@@ -358,9 +363,9 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
                 <button
                   key={et.type}
                   onClick={() => handleAdd(et.type)}
-                  className="flex flex-col items-center justify-center gap-2 p-6 bg-white border-3 border-transparent hover:border-cat-blue/20 bg-cream/30 rounded-2xl hover:text-cat-blue transition-all group hover:-translate-y-1"
+                  className="flex flex-col items-center justify-center gap-2 p-6 bg-white border border-transparent hover:border-cat-blue/20 bg-cream/30 rounded-2xl hover:text-cat-blue transition-all group hover:-translate-y-1"
                 >
-                  <div className="w-12 h-12 bg-white rounded-xl border-3 border-chocolate/5 flex items-center justify-center group-hover:bg-cat-blue group-hover:text-white transition-colors">
+                  <div className="w-12 h-12 bg-white rounded-xl border border-chocolate/5 flex items-center justify-center group-hover:bg-cat-blue group-hover:text-white transition-colors">
                     <et.icon size={24} />
                   </div>
                   <span className="text-xs font-bold">{et.label}</span>
@@ -688,7 +693,7 @@ function AnonBoxEditorPreview({
   return (
     <div
       style={computedStyle}
-      className="w-full p-8 rounded-[2rem] border-3 space-y-4 relative overflow-hidden pointer-events-none"
+      className="w-full p-8 rounded-[2rem] border space-y-4 relative overflow-hidden pointer-events-none"
     >
       <div className="absolute -top-10 -right-10 opacity-10 rotate-12">
         <Heart size={120} />
@@ -702,7 +707,7 @@ function AnonBoxEditorPreview({
       <div className="relative z-10 space-y-4">
         <div
           style={{ borderColor: computedStyle.borderColor, color: computedStyle.color }}
-          className="w-full bg-white/30 border-3 rounded-2xl p-5 truncate opacity-70"
+          className="w-full bg-white/30 border rounded-2xl p-5 truncate opacity-70"
         >
           {content.placeholder || '在此輸入想說的話...'}
         </div>
@@ -726,7 +731,7 @@ function AnonBoxEditorPreview({
             {publicReplies.slice(0, 5).map((row) => (
               <div
                 key={row.id}
-                className="rounded-2xl bg-white/10 border-3 p-4 space-y-2"
+                className="rounded-2xl bg-white/10 border p-4 space-y-2"
                 style={{ borderColor: computedStyle.borderColor }}
               >
                 <div
@@ -773,7 +778,7 @@ function ElementPreview({
       <div
         style={computedStyle}
         className={cn(
-          "font-bold leading-tight mx-auto p-5 border-3 rounded-[2rem] w-full",
+          "font-bold leading-tight mx-auto p-5 border rounded-[2rem] w-full",
           alignClass,
           ({ sm: 'text-sm', md: 'text-base', lg: 'text-lg', '6xl': 'text-4xl md:text-5xl font-black' } as Record<string, string>)[content.size as string] ?? 'text-base'
         )}
@@ -785,7 +790,7 @@ function ElementPreview({
 
   if (type === 'button') {
     return (
-      <div style={computedStyle} className="w-full p-5 border-3 rounded-[2rem] font-bold flex items-center justify-between group pointer-events-none">
+      <div style={computedStyle} className="w-full p-5 border rounded-[2rem] font-bold flex items-center justify-between group pointer-events-none">
         <div className="flex items-center gap-4">
           <div className="w-10 h-10 rounded-2xl flex items-center justify-center text-2xl transition-colors">
             {content.emoji || '🔗'}
@@ -803,7 +808,7 @@ function ElementPreview({
 
   if (type === 'image') {
     return (
-      <div className="relative w-full overflow-hidden rounded-[2rem] border-3 group pointer-events-none" style={computedStyle}>
+      <div className="relative w-full overflow-hidden rounded-[2rem] border group pointer-events-none" style={computedStyle}>
         <img src={content.url} alt="preview" className="w-full h-auto object-cover" />
         {content.caption ? (
           <div className="pointer-events-none absolute inset-x-0 bottom-0 overflow-hidden opacity-100 lg:opacity-0 transition-opacity duration-200 lg:group-hover:opacity-100">
@@ -861,7 +866,7 @@ function ElementPreview({
     return (
       <div
         style={computedStyle}
-        className="w-full p-5 rounded-[2rem] border-3 flex items-center justify-between"
+        className="w-full p-5 rounded-[2rem] border flex items-center justify-between"
       >
         <div>
           <div style={{ color: computedStyle.color }} className="text-xs font-bold uppercase tracking-wider opacity-70">{content.label || '下拉選單'}</div>
@@ -877,13 +882,13 @@ function ElementPreview({
     return (
       <div className="flex flex-wrap gap-2">
         {items.length === 0 ? (
-          <div style={computedStyle} className="text-xs px-3 py-2 rounded-xl border-3">尚未新增標籤</div>
+          <div style={computedStyle} className="text-xs px-3 py-2 rounded-xl border">尚未新增標籤</div>
         ) : (
           items.map((item: { text?: string; icon?: string }, idx: number) => (
             <div
               key={`tag-${idx}`}
               style={computedStyle}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-full border-3 font-medium text-sm"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-full border font-medium text-sm"
             >
               {item.icon ? <span>{item.icon}</span> : null}
               <span>{item.text || `標籤 ${idx + 1}`}</span>
@@ -934,7 +939,7 @@ function ElementPreview({
     const rawUrl = String(content.url || '').trim();
     if (!rawUrl) {
       return (
-        <div style={computedStyle} className="w-full rounded-[2rem] border-3 p-6 text-center">
+        <div style={computedStyle} className="w-full rounded-[2rem] border p-6 text-center">
           <Music className="mx-auto mb-2 opacity-40" />
           <div className="text-sm opacity-70">貼上 YouTube 或 YouTube Music 連結</div>
         </div>
@@ -968,29 +973,24 @@ function ElementPreview({
 }
 
 function ImageUploadControl({ currentUrl, onUploadComplete }: { currentUrl?: string, onUploadComplete: (url: string) => void }) {
+  const { showToast } = useToast();
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [statusText, setStatusText] = useState('');
+  const [isDragOver, setIsDragOver] = useState(false);
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    // Validate type
+  const processFile = async (file: File) => {
     if (!file.type.startsWith('image/')) {
-      alert('請上傳圖片檔案 (JPG, PNG, GIF, WebP)');
+      showToast('請上傳圖片檔案 (JPG, PNG, GIF, WebP)', 'warning');
       return;
     }
-
     setUploading(true);
     setProgress(5);
     setStatusText('壓縮圖片中...');
-
     try {
       const compressed = await compressImageForWeb(file);
       setProgress(40);
       setStatusText(`上傳 ${compressed.extension.toUpperCase()} 中...`);
-
       const safeBaseName = file.name.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9._-]/g, '_') || 'image';
       const uploadedUrl = await uploadImageToR2({
         blob: compressed.blob,
@@ -1001,15 +1001,13 @@ function ImageUploadControl({ currentUrl, onUploadComplete }: { currentUrl?: str
           setProgress(Math.min(99, mapped));
         },
       });
-
       setProgress(100);
       setStatusText('上傳完成');
-      // 刪除舊 R2 圖片（非阻塞）
       if (currentUrl) void deleteR2Image(currentUrl);
       onUploadComplete(uploadedUrl);
     } catch (error) {
       console.error(error);
-      alert('上傳失敗，請稍後再試');
+      showToast('上傳失敗，請稍後再試', 'error');
     } finally {
       setTimeout(() => {
         setUploading(false);
@@ -1019,10 +1017,33 @@ function ImageUploadControl({ currentUrl, onUploadComplete }: { currentUrl?: str
     }
   };
 
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) await processFile(file);
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) await processFile(file);
+  };
+
   return (
     <div className="space-y-2">
       <label className="block text-xs font-bold text-chocolate/40">上傳圖片檔案</label>
-      <div className="relative group overflow-hidden rounded-2xl border-3 border-dashed border-chocolate/10 hover:border-cat-blue/50 transition-colors bg-cream/30">
+      <div
+        className={cn(
+          'relative group overflow-hidden rounded-2xl border border-dashed transition-colors',
+          isDragOver
+            ? 'border-cat-blue bg-cat-blue/5'
+            : 'border-chocolate/10 hover:border-cat-blue/50 bg-cream/30'
+        )}
+        onDragEnter={(e) => { e.preventDefault(); setIsDragOver(true); }}
+        onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+        onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsDragOver(false); }}
+        onDrop={handleDrop}
+      >
         <input
           type="file"
           accept="image/*"
@@ -1038,9 +1059,9 @@ function ImageUploadControl({ currentUrl, onUploadComplete }: { currentUrl?: str
             </>
           ) : (
             <>
-              <UploadCloud className="text-chocolate/20 group-hover:text-cat-blue transition-colors" size={24} />
-              <div className="text-xs font-bold text-chocolate/60">
-                點擊或拖曳圖片至此處
+              <UploadCloud className={cn('transition-colors', isDragOver ? 'text-cat-blue' : 'text-chocolate/20 group-hover:text-cat-blue')} size={24} />
+              <div className={cn('text-xs font-bold transition-colors', isDragOver ? 'text-cat-blue' : 'text-chocolate/60')}>
+                {isDragOver ? '放開以上傳' : '點擊或拖曳圖片至此處'}
               </div>
             </>
           )}
@@ -1060,7 +1081,7 @@ function ImageUploadControl({ currentUrl, onUploadComplete }: { currentUrl?: str
 }
 
 function GlobalStyleControls({ styles, onChange }: { styles: GlobalDesignStyles; onChange: (next: GlobalDesignStyles) => void }) {
-  const [openPanel, setOpenPanel] = useState<'background' | 'typography' | 'palette'>('background');
+  const [openPanel, setOpenPanel] = useState<'background' | 'typography' | 'palette' | null>(null);
 
   const update = <K extends keyof GlobalDesignStyles>(key: K, value: GlobalDesignStyles[K]) => {
     onChange({ ...styles, [key]: value });
@@ -1085,213 +1106,150 @@ function GlobalStyleControls({ styles, onChange }: { styles: GlobalDesignStyles;
   };
 
   const togglePanel = (key: 'background' | 'typography' | 'palette') => {
-    setOpenPanel((prev) => (prev === key ? prev : key));
+    setOpenPanel((prev) => (prev === key ? null : key));
   };
 
   return (
-    <div className="rounded-2xl bg-cream/40">
-      <AccordionHeader title="背景設定" isOpen={openPanel === 'background'} onClick={() => togglePanel('background')} />
-      <AnimatePresence initial={false}>
-        {openPanel === 'background' && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2, ease: 'easeOut' }}
-            className="overflow-hidden"
-            style={{ willChange: 'height, opacity' }}
-          >
-            <div className="space-y-3 px-3 py-3">
-              <CompactImageUploadControl
-                currentUrl={styles.backgroundImageUrl}
-                onUploadComplete={(url) => update('backgroundImageUrl', url)}
-              />
-              <input
-                value={styles.backgroundImageUrl || ''}
-                onChange={(e) => update('backgroundImageUrl', e.target.value)}
-                className="w-full p-3 bg-white rounded-xl text-xs outline-none focus:ring-2 ring-cat-blue/20"
-                placeholder="背景圖片網址（可留白）"
-              />
-              <PaletteSelector
-                title="背景色"
-                palette={palette}
-                selected={styles.backgroundColor || '#F5F5DC'}
-                onPick={(color) => update('backgroundColor', color)}
-              />
-              <div className="grid grid-cols-2 gap-2">
-                <select
-                  value={styles.backgroundRepeat || 'no-repeat'}
-                  onChange={(e) => update('backgroundRepeat', e.target.value as any)}
-                  className="w-full p-3 bg-white rounded-xl text-xs outline-none"
-                >
-                  <option value="no-repeat">不重複</option>
-                  <option value="repeat">平鋪重複</option>
-                </select>
-                <select
-                  value={styles.backgroundSize || 'cover'}
-                  onChange={(e) => update('backgroundSize', e.target.value as any)}
-                  className="w-full p-3 bg-white rounded-xl text-xs outline-none"
-                >
-                  <option value="cover">裁切填滿</option>
-                  <option value="contain">完整顯示</option>
-                  <option value="stretch">拉伸</option>
-                  <option value="auto">原尺寸</option>
-                </select>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <AccordionHeader title="字體與主色" isOpen={openPanel === 'typography'} onClick={() => togglePanel('typography')} />
-      <AnimatePresence initial={false}>
-        {openPanel === 'typography' && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2, ease: 'easeOut' }}
-            className="overflow-hidden"
-            style={{ willChange: 'height, opacity' }}
-          >
-            <div className="space-y-3 px-3 py-3">
-              <select
-                value={styles.fontFamily || 'system'}
-                onChange={(e) => update('fontFamily', e.target.value as any)}
-                className="w-full p-3 bg-white rounded-xl text-xs outline-none"
-              >
-                <option value="system">系統字體</option>
-                <option value="noto-sans-tc">黑體 Noto Sans TC</option>
-                <option value="noto-serif-tc">襯線 Noto Serif TC</option>
-                <option value="chiron-goround-tc">圓體 Chiron GoRound TC</option>
-                <option value="lxgw-wenkai-tc">楷體 LXGW WenKai TC</option>
-              </select>
-              <PaletteSelector
-                title="文字色"
-                palette={palette}
-                selected={styles.textColor || '#3D2B1F'}
-                onPick={(color) => update('textColor', color)}
-              />
-              <PaletteSelector
-                title="元件底色"
-                palette={palette}
-                selected={styles.componentBackgroundColor || '#FFFFFF'}
-                onPick={(color) => update('componentBackgroundColor', color)}
-              />
-              {/* 元件底色透明度 */}
-              <div className="space-y-1">
-                <div className="flex justify-between text-[10px] font-bold text-chocolate/40">
-                  <span>元件底色透明度</span>
-                  <span>{Math.round((styles.componentBackgroundOpacity ?? 1) * 100)}%</span>
-                </div>
-                <input
-                  type="range"
-                  min={0} max={1} step={0.05}
-                  value={styles.componentBackgroundOpacity ?? 1}
-                  onChange={(e) => update('componentBackgroundOpacity', parseFloat(e.target.value))}
-                  className="w-full h-2 rounded-full accent-cat-blue cursor-pointer"
+    <div className="space-y-2">
+      {/* 背景設定 */}
+      <div className="rounded-2xl border border-chocolate/10 bg-white/70 overflow-hidden">
+        <button type="button" className="w-full px-4 py-3 flex items-center justify-between bg-transparent" onClick={() => togglePanel('background')}>
+          <div className="flex items-center gap-2">
+            <ImageIcon size={16} className="text-chocolate/50" />
+            <span className="text-xs font-black text-chocolate/70">背景設定</span>
+          </div>
+          <ChevronDown size={14} className={cn('transition-transform text-chocolate/50', openPanel === 'background' && 'rotate-180')} />
+        </button>
+        <AnimatePresence initial={false}>
+          {openPanel === 'background' && (
+            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2, ease: 'easeOut' }} className="overflow-hidden border-t border-chocolate/10" style={{ willChange: 'height, opacity' }}>
+              <div className="space-y-3 px-3 py-3">
+                <CompactImageUploadControl
+                  currentUrl={styles.backgroundImageUrl}
+                  onUploadComplete={(url) => update('backgroundImageUrl', url)}
                 />
-              </div>
-              <PaletteSelector
-                title="元件邊框色"
-                palette={palette}
-                selected={styles.componentBorderColor || '#3D2B1F'}
-                onPick={(color) => update('componentBorderColor', color)}
-              />
-              {/* 元件邊框粗細 & 樣式 */}
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <div className="text-[11px] font-bold text-chocolate/50">邊框粗細</div>
-                  <select
-                    value={styles.componentBorderWidth ?? 3}
-                    onChange={(e) => update('componentBorderWidth', Number(e.target.value))}
-                    className="w-full p-2 bg-white rounded-xl text-xs outline-none"
-                  >
-                    <option value={0}>無邊框</option>
-                    <option value={1}>細 (1px)</option>
-                    <option value={2}>中 (2px)</option>
-                    <option value={3}>粗 (3px)</option>
-                    <option value={4}>特粗 (4px)</option>
+                <input
+                  value={styles.backgroundImageUrl || ''}
+                  onChange={(e) => update('backgroundImageUrl', e.target.value)}
+                  className="w-full p-3 bg-white rounded-xl text-xs outline-none focus:ring-2 ring-cat-blue/20"
+                  placeholder="背景圖片網址（可留白）"
+                />
+                <PaletteSelector title="背景色" palette={palette} selected={styles.backgroundColor || '#F5F5DC'} onPick={(color) => update('backgroundColor', color)} />
+                <div className="grid grid-cols-2 gap-2">
+                  <select value={styles.backgroundRepeat || 'no-repeat'} onChange={(e) => update('backgroundRepeat', e.target.value as any)} className="w-full p-3 bg-white rounded-xl text-xs outline-none">
+                    <option value="no-repeat">不重複</option>
+                    <option value="repeat">平鋪重複</option>
                   </select>
-                </div>
-                <div className="space-y-1">
-                  <div className="text-[11px] font-bold text-chocolate/50">邊框樣式</div>
-                  <select
-                    value={styles.componentBorderStyle ?? 'solid'}
-                    onChange={(e) => update('componentBorderStyle', e.target.value as any)}
-                    className="w-full p-2 bg-white rounded-xl text-xs outline-none"
-                  >
-                    <option value="solid">實線</option>
-                    <option value="dashed">虛線</option>
-                    <option value="dotted">點線</option>
-                    <option value="double">雙線</option>
+                  <select value={styles.backgroundSize || 'cover'} onChange={(e) => update('backgroundSize', e.target.value as any)} className="w-full p-3 bg-white rounded-xl text-xs outline-none">
+                    <option value="cover">裁切填滿</option>
+                    <option value="contain">完整顯示</option>
+                    <option value="stretch">拉伸</option>
+                    <option value="auto">原尺寸</option>
                   </select>
                 </div>
               </div>
-              {/* 全局元件圓角 */}
-              <div className="space-y-1">
-                <div className="flex justify-between text-[11px] font-bold text-chocolate/50">
-                  <span>圓角</span>
-                  <span>{styles.componentBorderRadius ?? 32}px</span>
-                </div>
-                <input
-                  type="range"
-                  min={0} max={64} step={4}
-                  value={styles.componentBorderRadius ?? 32}
-                  onChange={(e) => update('componentBorderRadius', Number(e.target.value))}
-                  className="w-full h-2 rounded-full accent-cat-blue cursor-pointer"
-                />
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
 
-      <AccordionHeader title="主題調色盤" isOpen={openPanel === 'palette'} onClick={() => togglePanel('palette')} />
-      <AnimatePresence initial={false}>
-        {openPanel === 'palette' && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2, ease: 'easeOut' }}
-            className="overflow-hidden"
-            style={{ willChange: 'height, opacity' }}
-          >
-            <div className="space-y-3 px-3 py-3">
-              <div className="grid grid-cols-4 gap-2">
-                {palette.map((color, index) => (
-                  <div key={`palette-${index}`} className="space-y-1">
-                    <input
-                      type="color"
-                      value={color}
-                      onChange={(e) => updatePalette(index, e.target.value)}
-                      className="h-12 w-full cursor-pointer rounded-lg border-3 border-chocolate/10 bg-transparent"
-                    />
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => removePalette(index)}
-                        className="p-1 rounded-md text-red-500 hover:bg-red-50 disabled:opacity-30"
-                        disabled={palette.length <= 1}
-                        title="刪除顏色"
-                      >
-                        <Trash2 size={17} />
-                      </button>
-                    </div>
+      {/* 字型與主色 */}
+      <div className="rounded-2xl border border-chocolate/10 bg-white/70 overflow-hidden">
+        <button type="button" className="w-full px-4 py-3 flex items-center justify-between bg-transparent" onClick={() => togglePanel('typography')}>
+          <div className="flex items-center gap-2">
+            <Type size={16} className="text-chocolate/50" />
+            <span className="text-xs font-black text-chocolate/70">字型與主色</span>
+          </div>
+          <ChevronDown size={14} className={cn('transition-transform text-chocolate/50', openPanel === 'typography' && 'rotate-180')} />
+        </button>
+        <AnimatePresence initial={false}>
+          {openPanel === 'typography' && (
+            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2, ease: 'easeOut' }} className="overflow-hidden border-t border-chocolate/10" style={{ willChange: 'height, opacity' }}>
+              <div className="space-y-3 px-3 py-3">
+                <select value={styles.fontFamily || 'system'} onChange={(e) => update('fontFamily', e.target.value as any)} className="w-full p-3 bg-white rounded-xl text-xs outline-none">
+                  <option value="system">系統字體</option>
+                  <option value="noto-sans-tc">黑體 Noto Sans TC</option>
+                  <option value="noto-serif-tc">襯線 Noto Serif TC</option>
+                  <option value="chiron-goround-tc">圓體 Chiron GoRound TC</option>
+                  <option value="lxgw-wenkai-tc">楷體 LXGW WenKai TC</option>
+                </select>
+                <PaletteSelector title="文字色" palette={palette} selected={styles.textColor || '#3D2B1F'} onPick={(color) => update('textColor', color)} />
+                <PaletteSelector title="元件底色" palette={palette} selected={styles.componentBackgroundColor || '#FFFFFF'} onPick={(color) => update('componentBackgroundColor', color)} />
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[10px] font-bold text-chocolate/40">
+                    <span>元件底色透明度</span>
+                    <span>{Math.round((styles.componentBackgroundOpacity ?? 1) * 100)}%</span>
                   </div>
-                ))}
+                  <input type="range" min={0} max={1} step={0.05} value={styles.componentBackgroundOpacity ?? 1} onChange={(e) => update('componentBackgroundOpacity', parseFloat(e.target.value))} className="w-full h-2 rounded-full accent-cat-blue cursor-pointer" />
+                </div>
+                <PaletteSelector title="元件邊框色" palette={palette} selected={styles.componentBorderColor || '#3D2B1F'} onPick={(color) => update('componentBorderColor', color)} />
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <div className="text-[11px] font-bold text-chocolate/50">邊框粗細</div>
+                    <select value={styles.componentBorderWidth ?? 3} onChange={(e) => update('componentBorderWidth', Number(e.target.value))} className="w-full p-2 bg-white rounded-xl text-xs outline-none">
+                      <option value={0}>無邊框</option>
+                      <option value={1}>細 (1px)</option>
+                      <option value={2}>中 (2px)</option>
+                      <option value={3}>粗 (3px)</option>
+                      <option value={4}>特粗 (4px)</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-[11px] font-bold text-chocolate/50">邊框樣式</div>
+                    <select value={styles.componentBorderStyle ?? 'solid'} onChange={(e) => update('componentBorderStyle', e.target.value as any)} className="w-full p-2 bg-white rounded-xl text-xs outline-none">
+                      <option value="solid">實線</option>
+                      <option value="dashed">虛線</option>
+                      <option value="dotted">點線</option>
+                      <option value="double">雙線</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[11px] font-bold text-chocolate/50">
+                    <span>圓角</span>
+                    <span>{styles.componentBorderRadius ?? 32}px</span>
+                  </div>
+                  <input type="range" min={0} max={64} step={4} value={styles.componentBorderRadius ?? 32} onChange={(e) => update('componentBorderRadius', Number(e.target.value))} className="w-full h-2 rounded-full accent-cat-blue cursor-pointer" />
+                </div>
               </div>
-              <button
-                onClick={addPalette}
-                disabled={palette.length >= 10}
-                className="w-full p-3 rounded-xl text-xs font-bold bg-white border-3 border-chocolate/10 hover:bg-chocolate hover:text-white transition-colors disabled:opacity-40"
-              >
-                新增顏色
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* 主題調色盤 */}
+      <div className="rounded-2xl border border-chocolate/10 bg-white/70 overflow-hidden">
+        <button type="button" className="w-full px-4 py-3 flex items-center justify-between bg-transparent" onClick={() => togglePanel('palette')}>
+          <div className="flex items-center gap-2">
+            <Palette size={16} className="text-chocolate/50" />
+            <span className="text-xs font-black text-chocolate/70">主題色彩庫</span>
+          </div>
+          <ChevronDown size={14} className={cn('transition-transform text-chocolate/50', openPanel === 'palette' && 'rotate-180')} />
+        </button>
+        <AnimatePresence initial={false}>
+          {openPanel === 'palette' && (
+            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2, ease: 'easeOut' }} className="overflow-hidden border-t border-chocolate/10" style={{ willChange: 'height, opacity' }}>
+              <div className="space-y-3 px-3 py-3">
+                <div className="grid grid-cols-4 gap-2">
+                  {palette.map((color, index) => (
+                    <div key={`palette-${index}`} className="space-y-1">
+                      <input type="color" value={color} onChange={(e) => updatePalette(index, e.target.value)} className="h-12 w-full cursor-pointer rounded-lg border border-chocolate/10 bg-transparent" />
+                      <div className="flex items-center gap-1">
+                        <button onClick={() => removePalette(index)} className="p-1 rounded-md text-red-500 hover:bg-red-50 disabled:opacity-30" disabled={palette.length <= 1} title="刪除顏色">
+                          <Trash2 size={17} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <button onClick={addPalette} disabled={palette.length >= 10} className="w-full p-3 rounded-xl text-xs font-bold bg-white border border-chocolate/10 hover:bg-chocolate hover:text-white transition-colors disabled:opacity-40">
+                  新增顏色
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
     </div>
   );
 }
@@ -1330,7 +1288,7 @@ function PaletteSelector({
               key={`${title}-${index}`}
               onClick={() => onPick(color)}
               className={cn(
-                'h-8 w-8 rounded-md border-3 transition-transform hover:scale-105',
+                'h-8 w-8 rounded-md border transition-transform hover:scale-105',
                 isSelected ? 'border-chocolate shadow-md' : 'border-white/70'
               )}
               style={{ backgroundColor: color }}
@@ -1344,16 +1302,15 @@ function PaletteSelector({
 }
 
 function CompactImageUploadControl({ currentUrl, onUploadComplete }: { currentUrl?: string; onUploadComplete: (url: string) => void }) {
+  const { showToast } = useToast();
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [isDragOver, setIsDragOver] = useState(false);
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !file.type.startsWith('image/')) return;
-
+  const processFile = async (file: File) => {
+    if (!file.type.startsWith('image/')) return;
     setUploading(true);
     setProgress(5);
-
     try {
       const compressed = await compressImageForWeb(file);
       const safeBaseName = file.name.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9._-]/g, '_') || 'bg';
@@ -1364,32 +1321,52 @@ function CompactImageUploadControl({ currentUrl, onUploadComplete }: { currentUr
         onProgress: (p) => setProgress(Math.min(99, Math.max(5, p))),
       });
       setProgress(100);
-      // 刪除舊 R2 圖片（非阻塞）
       if (currentUrl) void deleteR2Image(currentUrl);
       onUploadComplete(uploadedUrl);
     } catch (error) {
       console.error(error);
-      alert('背景上傳失敗，請稍後再試');
+      showToast('背景上傳失敗，請稍後再試', 'error');
     } finally {
-      setTimeout(() => {
-        setUploading(false);
-        setProgress(0);
-      }, 250);
+      setTimeout(() => { setUploading(false); setProgress(0); }, 250);
     }
   };
 
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) await processFile(file);
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) await processFile(file);
+  };
+
   return (
-    <label className="relative block overflow-hidden rounded-xl border-3 border-dashed border-chocolate/15 bg-white/80 hover:border-cat-blue/60 transition-colors cursor-pointer">
-      <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" disabled={uploading} />
+    <div
+      className={cn(
+        'relative overflow-hidden rounded-xl border border-dashed transition-colors cursor-pointer',
+        isDragOver ? 'border-cat-blue bg-cat-blue/5' : 'border-chocolate/15 bg-white/80 hover:border-cat-blue/60'
+      )}
+      onDragEnter={(e) => { e.preventDefault(); setIsDragOver(true); }}
+      onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+      onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsDragOver(false); }}
+      onDrop={handleDrop}
+      onClick={() => document.getElementById('compact-upload-input')?.click()}
+    >
+      <input id="compact-upload-input" type="file" accept="image/*" onChange={handleFileChange} className="hidden" disabled={uploading} />
       <div className="py-4 px-3 text-center">
         {uploading ? (
           <div className="text-xs font-bold text-cat-blue">上傳中 {progress}%</div>
         ) : (
-          <div className="text-xs font-bold text-chocolate/60">上傳背景圖片</div>
+          <div className={cn('text-xs font-bold transition-colors', isDragOver ? 'text-cat-blue' : 'text-chocolate/60')}>
+            {isDragOver ? '放開以上傳' : '點擊或拖曳背景圖片'}
+          </div>
         )}
       </div>
       {uploading && <div className="absolute left-0 bottom-0 h-1 bg-cat-blue" style={{ width: `${progress}%` }} />}
-    </label>
+    </div>
   );
 }
 
@@ -1414,7 +1391,7 @@ function CountdownBlock({ title, targetAt, style }: { title?: string; targetAt?:
   const secs = Math.floor((diff / 1000) % 60);
 
   return (
-    <div style={style} className="w-full rounded-[2rem] border-3 p-5 text-center font-bold">
+    <div style={style} className="w-full rounded-[2rem] border p-5 text-center font-bold">
       <div className="text-sm opacity-70 mb-3">{title || '活動倒數'}</div>
       <div className="flex items-baseline justify-center">
         {[{ v: days, u: '天' }, { v: hours, u: '時' }, { v: mins, u: '分' }, { v: secs, u: '秒' }].map((t, i) => (
@@ -1456,7 +1433,7 @@ function InspectorControls({ el, onUpdate, cardData, globalStyles }: { el: CardE
           onChange={(e) => handleChange('text', e.target.value)}
           className="w-full p-4 bg-cream border-none rounded-xl focus:ring-2 ring-cat-blue/20 outline-none text-sm min-h-[100px]"
         />
-        <details className="rounded-xl border-3 border-chocolate/10 bg-white/60 p-3">
+        <details className="rounded-xl border border-chocolate/10 bg-white/60 p-3">
           <summary className="cursor-pointer text-xs font-bold text-chocolate/60">支援 Markdown 語法</summary>
           <div className="mt-3 text-xs text-chocolate/70 space-y-2">
             <div><span className="font-black">換行</span>：<code>&lt;br&gt;</code></div>
@@ -1590,7 +1567,7 @@ function InspectorControls({ el, onUpdate, cardData, globalStyles }: { el: CardE
           className="w-full p-4 bg-cream border-none rounded-xl font-mono text-xs outline-none focus:ring-2 ring-cat-blue/20"
           placeholder='<iframe src="https://open.spotify.com/embed/..." ...></iframe>'
         />
-        <div className="p-4 bg-chocolate/5 rounded-xl border-3 border-chocolate/10">
+        <div className="p-4 bg-chocolate/5 rounded-xl border border-chocolate/10">
           <p className="text-xs font-bold text-chocolate mb-2">支援方式</p>
           <ul className="text-xs text-chocolate/60 space-y-2 list-disc pl-4">
             <li><strong>YouTube / Spotify:</strong> 直接貼上影音連結，系統會自動轉成播放器。</li>
@@ -1767,7 +1744,7 @@ function ElementStyleControls({
   };
 
   return (
-    <div className="mt-4 rounded-2xl border-3 border-chocolate/10 bg-white/70 overflow-hidden">
+    <div className="mt-4 rounded-2xl border border-chocolate/10 bg-white/70 overflow-hidden">
       <div className="flex items-center justify-between px-4 py-3 border-b border-chocolate/10">
         <div className="flex items-center gap-2">
           <Palette size={15} className="text-chocolate/50" />
@@ -1815,7 +1792,7 @@ function ElementStyleControls({
                       type="button"
                       onClick={() => onUpdate({ backgroundColor: color })}
                       className={cn(
-                        'h-8 w-8 rounded-md border-3 transition-transform hover:scale-105',
+                        'h-8 w-8 rounded-md border transition-transform hover:scale-105',
                         (style.backgroundColor || '').toLowerCase() === color.toLowerCase()
                           ? 'border-chocolate shadow-md' : 'border-white/70'
                       )}
@@ -1848,7 +1825,7 @@ function ElementStyleControls({
                       type="button"
                       onClick={() => onUpdate({ borderColor: color })}
                       className={cn(
-                        'h-8 w-8 rounded-md border-3 transition-transform hover:scale-105',
+                        'h-8 w-8 rounded-md border transition-transform hover:scale-105',
                         (style.borderColor || '').toLowerCase() === color.toLowerCase()
                           ? 'border-chocolate shadow-md' : 'border-white/70'
                       )}
@@ -1911,14 +1888,76 @@ function ElementStyleControls({
   );
 }
 
+// ── Draggable wrapper components ──────────────────────────────────────────────
+// These must be separate components so that useDragControls() is called at the
+// top level of a React function, not inside a .map() callback.
+
+function DraggableDropdownItem({ item, index, items, updateItems, getKey }: {
+  item: { label: string; url: string };
+  index: number;
+  items: { label: string; url: string }[];
+  updateItems: (next: { label: string; url: string }[]) => void;
+  getKey: (item: { label: string; url: string }) => string;
+}) {
+  const controls = useDragControls();
+  return (
+    <Reorder.Item value={item} dragListener={false} dragControls={controls} className="flex items-center gap-2" as="div">
+      <div onPointerDown={(e) => controls.start(e)} className="w-9 h-9 shrink-0 inline-flex items-center justify-center rounded-xl bg-white border border-chocolate/10 text-chocolate/40 cursor-move touch-none">
+        <GripVertical size={16} />
+      </div>
+      <input
+        value={item.label}
+        onChange={(e) => updateItems(items.map((it, i) => i === index ? { ...it, label: e.target.value } : it))}
+        className="min-w-0 flex-1 p-3 bg-cream rounded-xl text-xs outline-none"
+        placeholder="文字"
+      />
+      <input
+        value={item.url}
+        onChange={(e) => updateItems(items.map((it, i) => i === index ? { ...it, url: e.target.value } : it))}
+        className="min-w-0 flex-1 p-3 bg-cream rounded-xl text-xs outline-none"
+        placeholder="連結"
+      />
+      <button onClick={() => updateItems(items.filter((_, i) => i !== index))} className="w-9 h-9 shrink-0 inline-flex items-center justify-center bg-red-50 text-red-500 rounded-xl text-xs font-bold">
+        <Trash2 size={15} />
+      </button>
+    </Reorder.Item>
+  );
+}
+
+function DraggableTagItem({ item, index, items, updateItems, getKey }: {
+  item: { text: string; icon?: string };
+  index: number;
+  items: { text: string; icon?: string }[];
+  updateItems: (next: { text: string; icon?: string }[]) => void;
+  getKey: (item: { text: string; icon?: string }) => string;
+}) {
+  const controls = useDragControls();
+  return (
+    <Reorder.Item value={item} dragListener={false} dragControls={controls} className="flex items-center gap-2" as="div">
+      <div onPointerDown={(e) => controls.start(e)} className="w-10 h-10 shrink-0 inline-flex items-center justify-center rounded-xl bg-white border border-chocolate/10 text-chocolate/40 cursor-move touch-none">
+        <GripVertical size={16} />
+      </div>
+      <EmojiPickerControl value={item.icon || '✨'} onChange={(emoji) => updateItems(items.map((it, i) => i === index ? { ...it, icon: emoji } : it))} />
+      <input
+        value={item.text}
+        onChange={(e) => updateItems(items.map((it, i) => i === index ? { ...it, text: e.target.value } : it))}
+        className="min-w-0 flex-1 p-3 bg-cream rounded-xl text-xs outline-none"
+        placeholder="標籤文字"
+      />
+      <button onClick={() => updateItems(items.filter((_, i) => i !== index))} className="w-10 h-10 shrink-0 inline-flex items-center justify-center bg-red-50 text-red-500 rounded-xl text-xs font-bold">
+        <Trash2 size={17} />
+      </button>
+    </Reorder.Item>
+  );
+}
+
 type DropdownItem = { label: string; url: string };
 function DropdownInspector({ content, handleChange, style, palette, globalStyles, onUpdateStyle }: { content: any; handleChange: (key: string, value: any) => void; style: ElementVisualStyle; palette: string[]; globalStyles?: GlobalDesignStyles; onUpdateStyle: (patch: Partial<ElementVisualStyle>) => void }) {
   const items: DropdownItem[] = content.items || [];
-  const keyMapRef = useRef<WeakMap<DropdownItem, string>>(new WeakMap());
   const counterRef = useRef(0);
-  const getKey = (item: DropdownItem) => {
-    if (!keyMapRef.current.has(item)) keyMapRef.current.set(item, `dd_${++counterRef.current}`);
-    return keyMapRef.current.get(item)!;
+  const getKey = (item: any): string => {
+    if (!item._key) item._key = `dd_${++counterRef.current}`;
+    return item._key;
   };
   const updateItems = (next: DropdownItem[]) => handleChange('items', next);
   return (
@@ -1933,40 +1972,12 @@ function DropdownInspector({ content, handleChange, style, palette, globalStyles
       <label className="block text-xs font-bold text-chocolate/40">選項列表</label>
       <Reorder.Group axis="y" values={items} onReorder={updateItems} className="space-y-2">
         {items.map((item, index) => (
-          <Reorder.Item key={getKey(item)} value={item} className="flex items-center gap-2" as="div">
-            <div className="w-9 h-9 shrink-0 inline-flex items-center justify-center rounded-xl bg-white border-3 border-chocolate/10 text-chocolate/40 cursor-move touch-none">
-              <GripVertical size={16} />
-            </div>
-            <input
-              value={item.label}
-              onChange={(e) => {
-                const next = items.map((it, i) => i === index ? { ...it, label: e.target.value } : it);
-                updateItems(next);
-              }}
-              className="min-w-0 flex-1 p-3 bg-cream rounded-xl text-xs outline-none"
-              placeholder="文字"
-            />
-            <input
-              value={item.url}
-              onChange={(e) => {
-                const next = items.map((it, i) => i === index ? { ...it, url: e.target.value } : it);
-                updateItems(next);
-              }}
-              className="min-w-0 flex-1 p-3 bg-cream rounded-xl text-xs outline-none"
-              placeholder="連結"
-            />
-            <button
-              onClick={() => updateItems(items.filter((_, i) => i !== index))}
-              className="w-9 h-9 shrink-0 inline-flex items-center justify-center bg-red-50 text-red-500 rounded-xl text-xs font-bold"
-            >
-              <Trash2 size={15} />
-            </button>
-          </Reorder.Item>
+          <DraggableDropdownItem key={getKey(item)} item={item} index={index} items={items} updateItems={updateItems} getKey={getKey} />
         ))}
       </Reorder.Group>
       <button
         onClick={() => updateItems([...items, { label: `項目 ${items.length + 1}`, url: '#' }])}
-        className="w-full p-3 rounded-xl text-xs font-bold bg-white border-3 border-chocolate/10 hover:bg-chocolate hover:text-white transition-colors"
+        className="w-full p-3 rounded-xl text-xs font-bold bg-white border border-chocolate/10 hover:bg-chocolate hover:text-white transition-colors"
       >
         新增選項
       </button>
@@ -1978,11 +1989,10 @@ function DropdownInspector({ content, handleChange, style, palette, globalStyles
 type TagItem = { text: string; icon?: string };
 function TagsInspector({ content, handleChange, style, palette, globalStyles, onUpdateStyle }: { content: any; handleChange: (key: string, value: any) => void; style: ElementVisualStyle; palette: string[]; globalStyles?: GlobalDesignStyles; onUpdateStyle: (patch: Partial<ElementVisualStyle>) => void }) {
   const items: TagItem[] = content.items || [];
-  const keyMapRef = useRef<WeakMap<TagItem, string>>(new WeakMap());
   const counterRef = useRef(0);
-  const getKey = (item: TagItem) => {
-    if (!keyMapRef.current.has(item)) keyMapRef.current.set(item, `tag_${++counterRef.current}`);
-    return keyMapRef.current.get(item)!;
+  const getKey = (item: any): string => {
+    if (!item._key) item._key = `tag_${++counterRef.current}`;
+    return item._key;
   };
   const updateItems = (next: TagItem[]) => handleChange('items', next);
   return (
@@ -1990,38 +2000,12 @@ function TagsInspector({ content, handleChange, style, palette, globalStyles, on
       <label className="block text-xs font-bold text-chocolate/40">標籤列表</label>
       <Reorder.Group axis="y" values={items} onReorder={updateItems} className="space-y-2">
         {items.map((item, index) => (
-          <Reorder.Item key={getKey(item)} value={item} className="flex items-center gap-2" as="div">
-            <div className="w-10 h-10 shrink-0 inline-flex items-center justify-center rounded-xl bg-white border-3 border-chocolate/10 text-chocolate/40 cursor-move touch-none">
-              <GripVertical size={16} />
-            </div>
-            <EmojiPickerControl
-              value={item.icon || '✨'}
-              onChange={(emoji) => {
-                const next = items.map((it, i) => i === index ? { ...it, icon: emoji } : it);
-                updateItems(next);
-              }}
-            />
-            <input
-              value={item.text}
-              onChange={(e) => {
-                const next = items.map((it, i) => i === index ? { ...it, text: e.target.value } : it);
-                updateItems(next);
-              }}
-              className="min-w-0 flex-1 p-3 bg-cream rounded-xl text-xs outline-none"
-              placeholder="標籤文字"
-            />
-            <button
-              onClick={() => updateItems(items.filter((_, i) => i !== index))}
-              className="w-10 h-10 shrink-0 inline-flex items-center justify-center bg-red-50 text-red-500 rounded-xl text-xs font-bold"
-            >
-              <Trash2 size={17} />
-            </button>
-          </Reorder.Item>
+          <DraggableTagItem key={getKey(item)} item={item} index={index} items={items} updateItems={updateItems} getKey={getKey} />
         ))}
       </Reorder.Group>
       <button
         onClick={() => updateItems([...items, { text: `標籤 ${items.length + 1}`, icon: '✨' }])}
-        className="w-full p-3 rounded-xl text-xs font-bold bg-white border-3 border-chocolate/10 hover:bg-chocolate hover:text-white transition-colors"
+        className="w-full p-3 rounded-xl text-xs font-bold bg-white border border-chocolate/10 hover:bg-chocolate hover:text-white transition-colors"
       >
         新增標籤
       </button>
@@ -2106,8 +2090,8 @@ function SortableElementItem({
         onPointerCancel={clearDragTimer}
         onPointerLeave={clearDragTimer}
         className={cn(
-          "absolute -left-12 top-1/2 -translate-y-1/2 p-2 bg-white rounded-2xl border-3 shadow-lg transition-colors cursor-move opacity-0 group-hover:opacity-100 xl:opacity-100 xl:flex hidden flex-col items-center gap-2 z-10",
-          selectedId === el.id ? 'border-cat-blue text-cat-blue' : 'border-chocolate/10 text-chocolate/20 hover:text-chocolate/50'
+          "absolute -left-12 top-1/2 -translate-y-1/2 p-1 bg-white rounded-xl border shadow-lg transition-colors cursor-move opacity-0 group-hover:opacity-100 xl:opacity-100 xl:flex hidden flex-col items-center gap-2 z-15",
+          selectedId === el.id ? 'border-cat-blue bg-cat-blue text-white' : 'border-chocolate/10 text-chocolate/20 hover:text-chocolate/50'
         )}
         style={{ touchAction: 'none' }}
         title="拖曳排序"
@@ -2124,13 +2108,13 @@ function SortableElementItem({
           onPointerCancel={clearDragTimer}
           onPointerLeave={clearDragTimer}
           className={cn(
-            "absolute left-6 top-1/2 -translate-y-1/2 p-2 bg-white rounded-2xl border-3 shadow-lg cursor-move z-10",
-            selectedId === el.id ? 'border-cat-blue text-cat-blue' : 'border-chocolate/10 text-chocolate/30'
+            "absolute -left-2 top-1/2 -translate-y-1/2 p-1 bg-white rounded-xl border shadow-lg cursor-move z-15",
+            selectedId === el.id ? 'border-cat-blue bg-cat-blue text-white' : 'border-chocolate/10 text-chocolate/30'
           )}
           style={{ touchAction: 'none' }}
           title="長按拖曳排序"
         >
-          <GripVertical size={18} />
+          <GripVertical size={16} />
         </button>
       )}
 
@@ -2155,21 +2139,21 @@ function fromLocalDatetimeInputValue(value?: string): string {
 }
 
 function GalleryImageUpload({ currentUrl, onUploadComplete }: { currentUrl?: string; onUploadComplete: (url: string) => void }) {
+  const { showToast } = useToast();
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [isDragOver, setIsDragOver] = useState(false);
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const processFile = async (file: File) => {
     if (!file.type.startsWith('image/')) {
-      alert('請上傳圖片檔案 (JPG, PNG, GIF, WebP)');
+      showToast('請上傳圖片檔案 (JPG, PNG, GIF, WebP)', 'warning');
       return;
     }
     setUploading(true);
     setProgress(5);
     try {
       const compressed = await compressImageForWeb(file);
-      const safeBaseName = file.name.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9._-]/g, '_') || 'gallery';
+      const safeBaseName = file.name.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9._-]/g, '_') || 'image';
       const uploadedUrl = await uploadImageToR2({
         blob: compressed.blob,
         fileName: safeBaseName,
@@ -2177,32 +2161,52 @@ function GalleryImageUpload({ currentUrl, onUploadComplete }: { currentUrl?: str
         onProgress: (p) => setProgress(Math.min(99, Math.max(5, p))),
       });
       setProgress(100);
-      // 刪除舊 R2 圖片（非阻塞）
       if (currentUrl) void deleteR2Image(currentUrl);
       onUploadComplete(uploadedUrl);
     } catch (error) {
       console.error(error);
-      alert('上傳失敗，請稍後再試');
+      showToast('上傳失敗，請稍後再試', 'error');
     } finally {
-      setTimeout(() => {
-        setUploading(false);
-        setProgress(0);
-      }, 250);
+      setTimeout(() => { setUploading(false); setProgress(0); }, 250);
     }
   };
 
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) await processFile(file);
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) await processFile(file);
+  };
+
   return (
-    <label className="relative block overflow-hidden rounded-xl border-3 border-dashed border-chocolate/15 bg-white/80 hover:border-cat-blue/60 transition-colors cursor-pointer">
-      <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" disabled={uploading} />
+    <div
+      className={cn(
+        'relative overflow-hidden rounded-xl border border-dashed transition-colors cursor-pointer',
+        isDragOver ? 'border-cat-blue bg-cat-blue/5' : 'border-chocolate/15 bg-white/80 hover:border-cat-blue/60'
+      )}
+      onDragEnter={(e) => { e.preventDefault(); setIsDragOver(true); }}
+      onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+      onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsDragOver(false); }}
+      onDrop={handleDrop}
+      onClick={() => document.getElementById('gallery-upload-input')?.click()}
+    >
+      <input id="gallery-upload-input" type="file" accept="image/*" onChange={handleFileChange} className="hidden" disabled={uploading} />
       <div className="py-3 px-3 text-center">
         {uploading ? (
           <div className="text-xs font-bold text-cat-blue">上傳中 {progress}%</div>
         ) : (
-          <div className="text-xs font-bold text-chocolate/60">上傳圖庫圖片</div>
+          <div className={cn('text-xs font-bold transition-colors', isDragOver ? 'text-cat-blue' : 'text-chocolate/60')}>
+            {isDragOver ? '放開以上傳' : '點擊或拖曳圖庫圖片'}
+          </div>
         )}
       </div>
       {uploading && <div className="absolute left-0 bottom-0 h-1 bg-cat-blue" style={{ width: `${progress}%` }} />}
-    </label>
+    </div>
   );
 }
 
@@ -2241,21 +2245,70 @@ function EmojiPickerControl({ value, onChange }: { value: string; onChange: (emo
   );
 }
 
+function DraggableGalleryItem({
+  img, index, imgKey, isOpen, images, updateImages, setExpandedKey
+}: {
+  img: any; index: number; imgKey: string; isOpen: boolean;
+  images: any[]; updateImages: (next: any[]) => void;
+  setExpandedKey: (key: string | null) => void;
+}) {
+  const controls = useDragControls();
+  return (
+    <Reorder.Item value={img} dragListener={false} dragControls={controls} className="rounded-2xl border border-chocolate/10 bg-white/70 overflow-hidden" as="div">
+      <div className="flex items-center">
+        <div onPointerDown={(e) => controls.start(e)} className="w-10 h-10 shrink-0 inline-flex items-center justify-center text-chocolate/40 cursor-move touch-none border-r border-chocolate/10">
+          <GripVertical size={16} />
+        </div>
+        <button type="button" onClick={() => setExpandedKey(isOpen ? null : imgKey)} className="w-full px-3 py-3 flex items-center justify-between gap-3 bg-transparent text-left">
+          <div className="text-xs font-black text-chocolate/70 truncate">{img.caption || `圖片 ${index + 1}`}</div>
+          <ChevronDown size={14} className={cn('transition-transform text-chocolate/50 shrink-0', isOpen && 'rotate-180')} />
+        </button>
+      </div>
+      <AnimatePresence initial={false}>
+        {isOpen && (
+          <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden">
+            <div className="border-t border-chocolate/10">
+              <div className="relative aspect-square w-full">
+                {img.url ? (
+                  <img src={img.url} alt={img.caption || `圖片 ${index + 1}`} className="absolute inset-0 h-full w-full object-cover" />
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-chocolate/35">尚未設定圖片</div>
+                )}
+              </div>
+              <div className="p-3 space-y-2">
+                <GalleryImageUpload currentUrl={img.url} onUploadComplete={(url) => updateImages(images.map((it, i) => i === index ? { ...it, url } : it))} />
+                <label className="block text-xs font-bold text-chocolate/40">圖片網址</label>
+                <input value={img.url || ''} onChange={(e) => updateImages(images.map((it, i) => i === index ? { ...it, url: e.target.value } : it))} className="w-full p-3 bg-cream rounded-xl text-xs outline-none" />
+                <label className="block text-xs font-bold text-chocolate/40">圖片說明（可留白）</label>
+                <input value={img.caption || ''} onChange={(e) => updateImages(images.map((it, i) => i === index ? { ...it, caption: e.target.value } : it))} className="w-full p-3 bg-cream rounded-xl text-xs outline-none" />
+                <label className="block text-xs font-bold text-chocolate/40">圖片連結</label>
+                <input value={img.link || ''} onChange={(e) => updateImages(images.map((it, i) => i === index ? { ...it, link: e.target.value } : it))} onBlur={(e) => { const raw = e.target.value.trim(); if (!raw) return; updateImages(images.map((it, i) => i === index ? { ...it, link: normalizeLinkTarget(raw) } : it)); }} className="w-full p-3 bg-cream rounded-xl text-xs outline-none" placeholder="輸入區段鵚點或網址" />
+                <button type="button" title="刪除此圖" onClick={() => { updateImages(images.filter((_: any, i: number) => i !== index)); setExpandedKey(null); }} className="w-full h-10 inline-flex items-center justify-center gap-2 bg-red-50 text-red-500 rounded-xl text-xs font-black">
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </Reorder.Item>
+  );
+}
+
 function GalleryInspector({ content, handleChange, style, palette, globalStyles, onUpdateStyle }: { content: any; handleChange: (key: string, value: any) => void; style: ElementVisualStyle; palette: string[]; globalStyles?: GlobalDesignStyles; onUpdateStyle: (patch: Partial<ElementVisualStyle>) => void }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const images: any[] = Array.isArray(content.images) ? content.images : [];
-  const keyMapRef = useRef<WeakMap<object, string>>(new WeakMap());
   const counterRef = useRef(0);
-  const getKey = (img: object) => {
-    if (!keyMapRef.current.has(img)) keyMapRef.current.set(img, `gi_${++counterRef.current}`);
-    return keyMapRef.current.get(img)!;
+  const getKey = (img: any): string => {
+    if (!img._key) img._key = `gi_${++counterRef.current}`;
+    return img._key;
   };
   const updateImages = (next: any[]) => handleChange('images', next);
 
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl border-3 border-chocolate/10 bg-white/70 overflow-hidden">
+      <div className="rounded-2xl border border-chocolate/10 bg-white/70 overflow-hidden">
         <button
           type="button"
           onClick={() => setSettingsOpen(!settingsOpen)}
@@ -2293,84 +2346,20 @@ function GalleryInspector({ content, handleChange, style, palette, globalStyles,
           const imgKey = getKey(img);
           const isOpen = expandedKey === imgKey;
           return (
-            <Reorder.Item key={imgKey} value={img} className="rounded-2xl border-3 border-chocolate/10 bg-white/70 overflow-hidden" as="div">
-              <div className="flex items-center">
-                <div className="w-10 h-10 shrink-0 inline-flex items-center justify-center text-chocolate/40 cursor-move touch-none border-r border-chocolate/10">
-                  <GripVertical size={16} />
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setExpandedKey(isOpen ? null : imgKey)}
-                  className="w-full px-3 py-3 flex items-center justify-between gap-3 bg-transparent text-left"
-                >
-                  <div className="text-xs font-black text-chocolate/70 truncate">{img.caption || `圖片 ${index + 1}`}</div>
-                  <ChevronDown size={14} className={cn('transition-transform text-chocolate/50 shrink-0', isOpen && 'rotate-180')} />
-                </button>
-              </div>
-
-              <AnimatePresence initial={false}>
-                {isOpen && (
-                  <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden">
-                    <div className="border-t border-chocolate/10">
-                      <div className="relative aspect-square w-full">
-                        {img.url ? (
-                          <img src={img.url} alt={img.caption || `圖片 ${index + 1}`} className="absolute inset-0 h-full w-full object-cover" />
-                        ) : (
-                          <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-chocolate/35">尚未設定圖片</div>
-                        )}
-                      </div>
-
-                      <div className="p-3 space-y-2">
-                        <GalleryImageUpload
-                          currentUrl={img.url}
-                          onUploadComplete={(url) => {
-                            const next = images.map((it, i) => i === index ? { ...it, url } : it);
-                            updateImages(next);
-                          }}
-                        />
-                        <label className="block text-xs font-bold text-chocolate/40">圖片網址</label>
-                        <input value={img.url || ''} onChange={(e) => {
-                          const next = images.map((it, i) => i === index ? { ...it, url: e.target.value } : it);
-                          updateImages(next);
-                        }} className="w-full p-3 bg-cream rounded-xl text-xs outline-none" />
-
-                        <label className="block text-xs font-bold text-chocolate/40">圖片說明（可留白）</label>
-                        <input value={img.caption || ''} onChange={(e) => {
-                          const next = images.map((it, i) => i === index ? { ...it, caption: e.target.value } : it);
-                          updateImages(next);
-                        }} className="w-full p-3 bg-cream rounded-xl text-xs outline-none" />
-
-                        <label className="block text-xs font-bold text-chocolate/40">圖片連結</label>
-                        <input value={img.link || ''} onChange={(e) => {
-                          const next = images.map((it, i) => i === index ? { ...it, link: e.target.value } : it);
-                          updateImages(next);
-                        }} onBlur={(e) => {
-                          const raw = e.target.value.trim();
-                          if (!raw) return;
-                          const next = images.map((it, i) => i === index ? { ...it, link: normalizeLinkTarget(raw) } : it);
-                          updateImages(next);
-                        }} className="w-full p-3 bg-cream rounded-xl text-xs outline-none" placeholder="輸入區段錨點或網址" />
-                        <button
-                          type="button"
-                          title="刪除此圖"
-                          onClick={() => {
-                            updateImages(images.filter((_: any, i: number) => i !== index));
-                            setExpandedKey(null);
-                          }}
-                          className="w-full h-10 inline-flex items-center justify-center gap-2 bg-red-50 text-red-500 rounded-xl text-xs font-black"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </Reorder.Item>
+            <DraggableGalleryItem
+              key={imgKey}
+              img={img}
+              index={index}
+              imgKey={imgKey}
+              isOpen={isOpen}
+              images={images}
+              updateImages={updateImages}
+              setExpandedKey={setExpandedKey}
+            />
           );
         })}
       </Reorder.Group>
-      <button onClick={() => updateImages([...images, { url: '', caption: '', link: '' }])} className="w-full p-3 rounded-xl text-xs font-bold bg-white border-3 border-chocolate/10 hover:bg-chocolate hover:text-white transition-colors">
+      <button onClick={() => updateImages([...images, { url: '', caption: '', link: '' }])} className="w-full p-3 rounded-xl text-xs font-bold bg-white border border-chocolate/10 hover:bg-chocolate hover:text-white transition-colors">
         新增圖片
       </button>
       <ElementStyleControls style={style} palette={palette} globalStyles={globalStyles} onUpdate={onUpdateStyle} />
@@ -2380,6 +2369,7 @@ function GalleryInspector({ content, handleChange, style, palette, globalStyles,
 
 
 function ElementActionsMenu({ el, onEdit, onDuplicate, onDelete }: { el: CardElement; onEdit: () => void; onDuplicate: () => void; onDelete: () => void }) {
+  const { showToast } = useToast();
   const [open, setOpen] = useState(false);
   const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
@@ -2405,9 +2395,9 @@ function ElementActionsMenu({ el, onEdit, onDuplicate, onDelete }: { el: CardEle
     e.stopPropagation();
     try {
       await navigator.clipboard.writeText(el.id);
-      alert('已複製元件 ID: ' + el.id);
-    } catch (err) {
-      alert('複製失敗，請手動複製: ' + el.id);
+      showToast('已複製元件 ID', 'success');
+    } catch {
+      showToast('ID: ' + el.id, 'info');
     }
     setOpen(false);
   };
@@ -2427,7 +2417,7 @@ function ElementActionsMenu({ el, onEdit, onDuplicate, onDelete }: { el: CardEle
             zIndex: 9999,
             willChange: 'transform, opacity',
           }}
-          className="w-44 bg-white rounded-2xl border-3 border-chocolate/10 shadow-lg overflow-hidden py-2"
+          className="w-44 bg-white rounded-2xl border border-chocolate/10 shadow-lg overflow-hidden py-2"
         >
           <button
             onClick={(e) => { e.stopPropagation(); onEdit(); setOpen(false); }}
@@ -2466,7 +2456,7 @@ function ElementActionsMenu({ el, onEdit, onDuplicate, onDelete }: { el: CardEle
       <button
         ref={btnRef}
         onClick={handleOpen}
-        className="p-3 bg-white border-3 border-chocolate/10 text-chocolate hover:bg-cat-blue hover:border-cat-blue hover:text-white rounded-full transition-all hover:scale-110 active:scale-95 shadow-sm"
+        className="p-3 bg-white border border-chocolate/10 text-chocolate hover:bg-cat-blue hover:border-cat-blue hover:text-white rounded-full transition-all hover:scale-110 active:scale-95 shadow-sm"
         title="元件操作"
       >
         <Plus size={16} className={cn("transition-transform", open && "rotate-45")} />
