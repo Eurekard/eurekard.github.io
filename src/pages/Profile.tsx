@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useLayoutEffect } from 'react';
+import React, { useEffect, useState, useRef, useLayoutEffect, useMemo, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { db } from '../lib/firebase';
 import { doc, getDoc, collection, addDoc, query, onSnapshot, where } from 'firebase/firestore';
@@ -19,6 +19,41 @@ marked.use({
   gfm: true,
   breaks: true,
 });
+
+const normalizeHash = (h: any) => String(h || 'home').replace(/^#/, '').trim() || 'home';
+
+// Helper to find which section an element ID belongs to
+const findSectionOfId = (elements: any[], id: string): string | null => {
+  let currentSection = 'home';
+  let currentMode: 'header' | 'normal' | 'footer' = 'normal';
+
+  const search = (items: any[]): string | null => {
+    for (const el of items) {
+      if (!el) continue;
+      if (el.type === 'section') {
+        const kind = el.content?.kind || 'normal';
+        if (kind === 'header') currentMode = 'header';
+        else if (kind === 'footer') currentMode = 'footer';
+        else {
+          currentMode = 'normal';
+          currentSection = normalizeHash(el.content?.name);
+        }
+      } else {
+        if (el.id === id) return currentMode === 'normal' ? currentSection : currentMode;
+        if (el.type === 'layout' && el.content?.children) {
+          const raw = el.content.children;
+          const cols = Array.isArray(raw) ? raw : Object.values(raw).map((v: any) => v.items || []);
+          for (const col of cols) {
+            const found = search(col);
+            if (found) return found;
+          }
+        }
+      }
+    }
+    return null;
+  };
+  return search(elements);
+};
 
 export default function Profile() {
   const { username } = useParams();
@@ -162,44 +197,103 @@ export default function Profile() {
     ].join('\n');
   }, [data?.published_content?.styles?.backgroundColor, data?.published_content?.styles?.componentBorderColor]);
 
-  useEffect(() => {
-    const allElements = data?.published_content?.elements || [];
+  // Unified hash handler
+  const handleHashChange = useCallback(() => {
+    const raw = window.location.hash.replace(/^#/, '');
+    if (!raw) return;
 
-    const handleHashChange = () => {
-      const raw = (window.location.hash || '').replace(/^#/, '');
-      if (!raw) return;
-
-      // If the hash matches an element ID, scroll to it without switching sections
-      if (/^el_/.test(raw)) {
-        const target = document.getElementById(raw);
-        if (target) {
-          target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        } else {
-          // Element might be in a different section – find which section it belongs to
-          const { sections } = splitElementsBySection(allElements);
-          for (const section of sections) {
-            if (section.elements.some((el: any) => el.id === raw)) {
-              setActiveSectionHash(section.hash);
-              // After section renders, scroll to element
-              setTimeout(() => {
-                document.getElementById(raw)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-              }, 120);
-              return;
-            }
-          }
+    if (/^el_/.test(raw)) {
+      const target = document.getElementById(raw);
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else {
+        const elements = data?.published_content?.elements || [];
+        const targetSection = findSectionOfId(elements, raw);
+        if (targetSection && targetSection !== 'header' && targetSection !== 'footer') {
+          setActiveSectionHash(targetSection);
         }
-        return;
       }
+    } else {
+      setActiveSectionHash(normalizeHash(raw));
+    }
+  }, [data?.published_content?.elements]);
 
-      // Otherwise treat as section hash
-      setActiveSectionHash(raw);
-    };
-
-    // Sync on mount
+  // Sync on mount and hash change
+  useEffect(() => {
     handleHashChange();
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [handleHashChange]);
+
+  // Robust scrolling effect: when section changes or data loads, check if we need to scroll to a specific ID
+  useEffect(() => {
+    const raw = window.location.hash.replace(/^#/, '');
+    if (/^el_/.test(raw)) {
+      let attempts = 0;
+      const maxAttempts = 8;
+      
+      const scrollAttempt = () => {
+        const target = document.getElementById(raw);
+        if (target) {
+          // For mobile devices, use 'start' instead of 'center' to ensure visibility
+          const isMobile = window.innerWidth < 768;
+          target.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: isMobile ? 'start' : 'center' 
+          });
+          return true;
+        }
+        return false;
+      };
+
+      const retryScroll = () => {
+        if (scrollAttempt()) {
+          return;
+        }
+        
+        attempts++;
+        if (attempts < maxAttempts) {
+          // Exponential backoff: 100ms, 200ms, 400ms, 800ms...
+          const delay = 100 * Math.pow(2, attempts - 1);
+          setTimeout(retryScroll, delay);
+        }
+      };
+
+      if (!scrollAttempt()) {
+        retryScroll();
+      }
+    }
+  }, [activeSectionHash, data]);
+
+  const elementSectionMap = useMemo(() => {
+    const map = new Map<string, string>();
+    const allElements = data?.published_content?.elements || [];
+    let current = 'home';
+    let mode: 'header' | 'normal' | 'footer' = 'normal';
+
+    const walk = (items: any[]) => {
+      for (const el of items) {
+        if (!el) continue;
+        if (el.type === 'section') {
+          const kind = el.content?.kind || 'normal';
+          if (kind === 'header') mode = 'header';
+          else if (kind === 'footer') mode = 'footer';
+          else {
+            mode = 'normal';
+            current = normalizeHash(el.content?.name);
+          }
+        } else {
+          map.set(el.id, mode === 'normal' ? current : mode);
+          if (el.type === 'layout' && el.content?.children) {
+            const raw = el.content.children;
+            const cols = Array.isArray(raw) ? raw : Object.values(raw).map((v: any) => v.items || []);
+            cols.forEach((col: any[]) => walk(col));
+          }
+        }
+      }
+    };
+    walk(allElements);
+    return map;
   }, [data?.published_content?.elements]);
 
   const handleTrackClick = (targetId?: string) => {
@@ -247,21 +341,14 @@ export default function Profile() {
       const target = document.getElementById(raw);
       if (target) {
         target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        window.location.hash = raw;
       } else {
         // Element is in a different section - switch section then scroll
-        const allElements = data?.published_content?.elements || [];
-        const { sections, headerElements, footerElements } = splitElementsBySection(allElements);
-        // Check header / footer first (always rendered)
-        const inFixed = [...headerElements, ...footerElements].some((el: any) => el.id === raw);
-        if (inFixed) return; // should have been found by getElementById above
-        for (const section of sections) {
-          if (section.elements.some((el: any) => el.id === raw)) {
-            setActiveSectionHash(section.hash);
-            setTimeout(() => {
-              document.getElementById(raw)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }, 140);
-            return;
-          }
+        const elements = data?.published_content?.elements || [];
+        const targetSection = findSectionOfId(elements, raw);
+        if (targetSection && targetSection !== 'header' && targetSection !== 'footer') {
+          setActiveSectionHash(targetSection);
+          window.location.hash = raw;
         }
       }
       return;
@@ -297,9 +384,9 @@ export default function Profile() {
   const globalStyles = resolveGlobalStyles(data.published_content.styles);
   const pageStyle = toGlobalPageStyle(globalStyles);
   const segmented = splitElementsBySection(elements);
-  const fallbackSection = segmented.sections[0]?.hash || 'home';
-  const resolvedActiveHash = activeSectionHash || fallbackSection;
-  const activeSection = segmented.sections.find((section) => section.hash === resolvedActiveHash) || segmented.sections[0];
+  const fallbackSection = normalizeHash(segmented.sections[0]?.hash);
+  const resolvedActiveHash = normalizeHash(activeSectionHash || fallbackSection);
+  const activeSection = segmented.sections.find((section) => normalizeHash(section.hash) === resolvedActiveHash) || segmented.sections[0];
   const headerElements = segmented.headerElements;
   const sectionElements = activeSection?.elements || [];
   const footerElements = segmented.footerElements;
@@ -316,7 +403,10 @@ export default function Profile() {
       <motion.div
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-[480px] relative z-10"
+        className={cn(
+          'w-full relative z-10 max-w-[480px]',
+          globalStyles.layoutWidth === 'wide' && 'sm:max-w-[1200px]'
+        )}
         style={{ willChange: 'transform, opacity' }}
       >
         {/* Profile Header */}
@@ -377,6 +467,8 @@ export default function Profile() {
                 onTrackClick={handleTrackClick}
                 globalStyles={globalStyles}
                 onHashNavigate={navigateToHash}
+                activeSectionHash={resolvedActiveHash}
+                elementSectionMap={elementSectionMap}
               />
             </div>
           ))}
@@ -405,6 +497,8 @@ export default function Profile() {
                     onTrackClick={handleTrackClick}
                     globalStyles={globalStyles}
                     onHashNavigate={navigateToHash}
+                    activeSectionHash={resolvedActiveHash}
+                    elementSectionMap={elementSectionMap}
                   />
                 </div>
               ))}
@@ -425,6 +519,8 @@ export default function Profile() {
                 onTrackClick={handleTrackClick}
                 globalStyles={globalStyles}
                 onHashNavigate={navigateToHash}
+                activeSectionHash={resolvedActiveHash}
+                elementSectionMap={elementSectionMap}
               />
             </div>
           ))}
@@ -445,7 +541,7 @@ export default function Profile() {
   );
 }
 
-function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, sent, isReplyEnabled, publicReplies, onTrackClick, globalStyles, onHashNavigate }: {
+function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, sent, isReplyEnabled, publicReplies, onTrackClick, globalStyles, onHashNavigate, activeSectionHash, elementSectionMap }: {
   el: any;
   cardId: string;
   onSendAnon: () => void;
@@ -457,8 +553,18 @@ function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, se
   onTrackClick: (id: string) => void;
   globalStyles: any;
   onHashNavigate: (hash: string) => void;
+  activeSectionHash: string;
+  elementSectionMap: Map<string, string>;
 }) {
   const { type, content } = el;
+
+  // Visibility Check: Only render if it belongs to current section, header, or footer
+  const logicalSection = elementSectionMap.get(el.id);
+  const isVisible = logicalSection === 'header' || logicalSection === 'footer' || logicalSection === activeSectionHash;
+
+  // Layout components are containers. We render the container but it will filter its children.
+  if (!isVisible && el.type !== 'layout') return null;
+
   // resolveElementStyle 會根據 useGlobalStyle 旗標，自動選擇全局或自訂樣式
   // 並且正確套用 borderWidth, borderStyle, borderRadius, backgroundOpacity 等所有屬性
   const computedStyle = resolveElementStyle(el.style, globalStyles);
@@ -742,6 +848,115 @@ function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, se
     return <MoodCounter mode="live" cardId={cardId} elementId={el.id} content={content} style={computedStyle} />;
   }
 
+  if (type === 'layout') {
+    const cols: number = content.columns ?? 2;
+    const widths: number[] = content.columnWidths ?? Array.from({ length: cols }, () => Math.round(100 / cols));
+
+    // Defensive hydration: handle both array of arrays and flattened object (from Firestore)
+    let childrenCols: any[][] = [];
+    const rawChildren = content.children;
+    if (Array.isArray(rawChildren)) {
+      childrenCols = rawChildren;
+    } else if (rawChildren && typeof rawChildren === 'object') {
+      const keys = Object.keys(rawChildren).sort((a, b) => Number(a) - Number(b));
+      childrenCols = keys.map(k => (rawChildren as any)[k].items || []);
+    }
+    while (childrenCols.length < cols) childrenCols.push([]);
+    return (
+      <>
+        {/* Desktop: multi-column */}
+        <div className="hidden sm:flex flex-row gap-4 w-full">
+          {Array.from({ length: cols }).map((_, colIdx) => {
+            const colChildren = childrenCols[colIdx] || [];
+            return (
+              <div
+                key={`profile-layout-col-${colIdx}`}
+                style={{ flexBasis: `${widths[colIdx] ?? Math.round(100 / cols)}%`, flexShrink: 0, flexGrow: 0, minWidth: 0 }}
+                className="flex flex-col gap-4"
+              >
+                <div className="flex-1 min-w-0 space-y-4">
+                  <AnimatePresence mode="wait" initial={false}>
+                    <motion.div
+                      key={`layout-col-${colIdx}-${activeSectionHash}`}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.22, ease: 'easeInOut' }}
+                      style={{ willChange: 'opacity' }}
+                      className="space-y-4"
+                    >
+                      {colChildren.filter((child: any) => {
+                        // Only render children that belong to the current section
+                        const childSection = elementSectionMap.get(child.id);
+                        return childSection === 'header' || childSection === 'footer' || childSection === activeSectionHash;
+                      }).map((child: any) => (
+                        <div key={child.id} id={child.id}>
+                          <RenderElement
+                            el={child}
+                            cardId={cardId}
+                            onSendAnon={onSendAnon}
+                            anonMessage={anonMessage}
+                            setAnonMessage={setAnonMessage}
+                            sent={sent}
+                            isReplyEnabled={isReplyEnabled}
+                            publicReplies={publicReplies}
+                            onTrackClick={onTrackClick}
+                            globalStyles={globalStyles}
+                            onHashNavigate={onHashNavigate}
+                            activeSectionHash={activeSectionHash}
+                            elementSectionMap={elementSectionMap}
+                          />
+                        </div>
+                      ))}
+                    </motion.div>
+                  </AnimatePresence>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        {/* Mobile: vertical */}
+        <div className="flex sm:hidden flex-col gap-4 w-full">
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={`layout-mobile-${activeSectionHash}`}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.22, ease: 'easeInOut' }}
+              style={{ willChange: 'opacity' }}
+              className="space-y-4"
+            >
+              {childrenCols.flat().filter((child: any) => {
+                // Only render children that belong to the current section
+                const childSection = elementSectionMap.get(child.id);
+                return childSection === 'header' || childSection === 'footer' || childSection === activeSectionHash;
+              }).map((child: any) => (
+                <div key={child.id} id={child.id}>
+                  <RenderElement
+                    el={child}
+                    cardId={cardId}
+                    onSendAnon={onSendAnon}
+                    anonMessage={anonMessage}
+                    setAnonMessage={setAnonMessage}
+                    sent={sent}
+                    isReplyEnabled={isReplyEnabled}
+                    publicReplies={publicReplies}
+                    onTrackClick={onTrackClick}
+                    globalStyles={globalStyles}
+                    onHashNavigate={onHashNavigate}
+                    activeSectionHash={activeSectionHash}
+                    elementSectionMap={elementSectionMap}
+                  />
+                </div>
+              ))}
+            </motion.div>
+          </AnimatePresence>
+        </div>
+      </>
+    );
+  }
+
   return null;
 }
 
@@ -983,13 +1198,11 @@ function splitElementsBySection(elements: any[]) {
   const footerElements: any[] = [];
   const sections: Array<{ hash: string; elements: any[] }> = [];
 
-  let preSection: any[] = [];
-  let currentMode: 'pre' | 'normal' | 'footer' = 'pre';
+  let currentMode: 'header' | 'normal' | 'footer' = 'normal';
   let currentSectionHash = 'home';
-  let headerMarkerSeen = false;
 
   const ensureSection = (hash: string) => {
-    const normalized = (hash || 'home').replace(/^#/, '').trim() || 'home';
+    const normalized = normalizeHash(hash);
     let section = sections.find((row) => row.hash === normalized);
     if (!section) {
       section = { hash: normalized, elements: [] };
@@ -998,49 +1211,84 @@ function splitElementsBySection(elements: any[]) {
     return section;
   };
 
-  for (const el of elements) {
-    if (el?.type === 'section') {
-      const kind = el?.content?.kind || 'normal';
-      if (kind === 'header') {
-        headerMarkerSeen = true;
-        headerElements.push(...preSection);
-        preSection = [];
-        currentMode = 'normal';
-        continue;
-      }
-
-      if (kind === 'footer') {
-        if (!headerMarkerSeen && preSection.length > 0) {
-          headerElements.push(...preSection);
-          preSection = [];
+  const traverse = (items: any[], isTopLevel: boolean) => {
+    for (const el of items) {
+      if (el?.type === 'section') {
+        const kind = el?.content?.kind || 'normal';
+        if (kind === 'header') {
+          currentMode = 'header';
+        } else if (kind === 'footer') {
+          currentMode = 'footer';
+        } else {
+          currentMode = 'normal';
+          currentSectionHash = normalizeHash(el?.content?.name);
+          ensureSection(currentSectionHash);
         }
-        currentMode = 'footer';
         continue;
       }
 
-      currentMode = 'normal';
-      currentSectionHash = String(el?.content?.name || 'home').replace(/^#/, '') || 'home';
-      ensureSection(currentSectionHash);
-      continue;
+      if (currentMode === 'header') {
+        if (isTopLevel) headerElements.push(el);
+      } else if (currentMode === 'footer') {
+        if (isTopLevel) footerElements.push(el);
+      } else {
+        const section = ensureSection(currentSectionHash);
+        if (isTopLevel) {
+          if (!section.elements.find(item => item.id === el.id)) {
+            section.elements.push(el);
+          }
+        }
+      }
+
+      // Recursive check for layouts: they might change the global currentSectionHash
+      if (el?.type === 'layout' && el?.content?.children) {
+        const raw = el.content.children;
+        const cols = Array.isArray(raw) ? raw : Object.values(raw).map((v: any) => v.items || []);
+
+        const sectionsAddedTo = new Set<string>();
+        const sectionBefore = currentSectionHash;
+
+        // Custom traverse that records sections
+        const subTraverse = (subItems: any[]) => {
+          for (const subEl of subItems) {
+            if (subEl?.type === 'section') {
+              const kind = subEl?.content?.kind || 'normal';
+              if (kind === 'normal') {
+                currentSectionHash = normalizeHash(subEl?.content?.name);
+                ensureSection(currentSectionHash);
+                sectionsAddedTo.add(currentSectionHash);
+              }
+            } else if (subEl?.type === 'layout' && subEl?.content?.children) {
+              const subRaw = subEl.content.children;
+              const subCols = Array.isArray(subRaw) ? subRaw : Object.values(subRaw).map((v: any) => v.items || []);
+              subCols.forEach((subCol: any[]) => subTraverse(subCol));
+            }
+          }
+        };
+
+        cols.forEach((col: any[]) => subTraverse(col));
+
+        if (isTopLevel) {
+          sectionsAddedTo.forEach(hash => {
+            // ONLY add to normal sections if it's NOT already in header or footer
+            const isPersistent = headerElements.some(h => h.id === el.id) || footerElements.some(f => f.id === el.id);
+            if (isPersistent) return;
+
+            const section = ensureSection(hash);
+            if (!section.elements.find(item => item.id === el.id)) {
+              section.elements.push(el);
+            }
+          });
+        }
+      }
     }
+  };
 
-    if (currentMode === 'footer') {
-      footerElements.push(el);
-      continue;
-    }
+  traverse(elements, true);
 
-    if (currentMode === 'normal') {
-      ensureSection(currentSectionHash).elements.push(el);
-      continue;
-    }
-
-    preSection.push(el);
-  }
-
+  // If no sections found, ensure home exists
   if (sections.length === 0) {
-    sections.push({ hash: 'home', elements: [...preSection] });
-  } else if (preSection.length > 0) {
-    headerElements.push(...preSection);
+    sections.push({ hash: 'home', elements: [] });
   }
 
   return { headerElements, footerElements, sections };

@@ -13,7 +13,7 @@ export interface UserProfile {
 
 export interface CardElement {
   id: string;
-  type: 'text' | 'button' | 'image' | 'gallery' | 'section' | 'dropdown' | 'tags' | 'embed' | 'music' | 'countdown' | 'visitor' | 'mood' | 'anon_box';
+  type: 'text' | 'button' | 'image' | 'gallery' | 'section' | 'dropdown' | 'tags' | 'embed' | 'music' | 'countdown' | 'visitor' | 'mood' | 'anon_box' | 'layout';
   content: any;
   style: any;
 }
@@ -44,6 +44,7 @@ export interface GlobalDesignStyles {
   componentBorderStyle?: 'solid' | 'dashed' | 'dotted' | 'double';
   componentBorderRadius?: number;
   avatarStyle?: ElementVisualStyle;
+  layoutWidth?: 'narrow' | 'wide';
 }
 
 export interface CardData {

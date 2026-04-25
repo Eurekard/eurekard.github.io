@@ -16,6 +16,7 @@ export const DEFAULT_GLOBAL_STYLES: GlobalDesignStyles = {
   componentBorderWidth: 3,
   componentBorderStyle: 'solid',
   componentBorderRadius: 32,
+  layoutWidth: 'narrow',
 };
 
 export function normalizeOpacity(opacity?: number): number {

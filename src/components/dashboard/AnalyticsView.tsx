@@ -103,7 +103,7 @@ export default function AnalyticsView({ cardId, username, displayName }: { cardI
   const realtimeActiveUsers = report?.realtimeActiveUsers ?? 0;
 
   const updatedStr = lastUpdated
-    ? `${lastUpdated.getHours().toString().padStart(2,'0')}:${lastUpdated.getMinutes().toString().padStart(2,'0')}`
+    ? `${lastUpdated.getHours().toString().padStart(2, '0')}:${lastUpdated.getMinutes().toString().padStart(2, '0')}`
     : null;
 
   return (
@@ -113,7 +113,6 @@ export default function AnalyticsView({ cardId, username, displayName }: { cardI
         <Globe size={16} className="text-cat-blue shrink-0" />
         <span className="text-chocolate/70 font-medium">
           數據來源：<span className="font-bold text-chocolate">Google Analytics 4</span>
-          <span className="text-chocolate/50 ml-2">（已過濾機器人流量）</span>
         </span>
         <div className="ml-auto flex items-center gap-3 shrink-0">
           {!loading && realtimeActiveUsers > 0 && (
