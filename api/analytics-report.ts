@@ -95,23 +95,17 @@ export default async function handler(req: any, res: any) {
         ...pathFilter,
       }),
 
-      // 4) Realtime report – last 30 minutes (no delay!)
-      // Uses runRealtimeReport which refreshes every ~5 minutes
+      // 4. Realtime report – last 30 minutes (~5 min freshness, no 24-48h delay)
+      //    pagePath/unifiedPageScreen are NOT valid realtime dimensions.
+      //    unifiedScreenName works but maps to page title, not path.
+      //    → Query property-wide (no filter) for reliable cross-browser data.
       client.runRealtimeReport({
         property,
+        dimensions: [{ name: 'unifiedScreenName' }],
         metrics: [
-          { name: 'activeUsers' },        // users active right now
-          { name: 'screenPageViews' },    // page views in last 30 min
-          { name: 'eventCount' },         // all events in last 30 min
+          { name: 'activeUsers' },
+          { name: 'eventCount' },
         ],
-        ...(username ? {
-          dimensionFilter: {
-            filter: {
-              fieldName: 'unifiedPageScreen',
-              stringFilter: { matchType: 'BEGINS_WITH' as const, value: `/${username}` },
-            },
-          },
-        } : {}),
       }),
     ]);
 
@@ -122,11 +116,14 @@ export default async function handler(req: any, res: any) {
     const totalClicks = Math.max(0, totalAllEvents - totalViews);
 
     // ── Parse realtime stats ─────────────────────────────────────────────────
-    const rtRow = realtimeRes[0]?.rows?.[0];
-    const realtimeActiveUsers = parseInt(rtRow?.metricValues?.[0]?.value || '0', 10);
-    const realtimeViews = parseInt(rtRow?.metricValues?.[1]?.value || '0', 10);
-    const realtimeAllEvents = parseInt(rtRow?.metricValues?.[2]?.value || '0', 10);
-    const realtimeClicks = Math.max(0, realtimeAllEvents - realtimeViews);
+    // rows are grouped by unifiedScreenName (page title) — sum across all pages
+    const rtRows = realtimeRes[0]?.rows || [];
+    const realtimeActiveUsers = rtRows.reduce((s, r) => s + parseInt(r.metricValues?.[0]?.value || '0', 10), 0);
+    const realtimeAllEvents = rtRows.reduce((s, r) => s + parseInt(r.metricValues?.[1]?.value || '0', 10), 0);
+    // eventCount includes page_view events; approximate views ≈ activeUsers for realtime
+    const realtimeViews = realtimeActiveUsers;
+    const realtimeClicks = Math.max(0, realtimeAllEvents - realtimeActiveUsers);
+
 
     // ── Parse daily trend ────────────────────────────────────────────────────
     const trend = (timelineRes[0]?.rows || []).map((row) => {
