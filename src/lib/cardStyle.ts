@@ -11,7 +11,11 @@ export const DEFAULT_GLOBAL_STYLES: GlobalDesignStyles = {
   palette: DEFAULT_PALETTE,
   textColor: '#3D2B1F',
   componentBackgroundColor: '#FFFFFF',
+  componentBackgroundOpacity: 1,
   componentBorderColor: '#3D2B1F',
+  componentBorderWidth: 3,
+  componentBorderStyle: 'solid',
+  componentBorderRadius: 32,
 };
 
 export function normalizeOpacity(opacity?: number): number {
@@ -54,6 +58,51 @@ export function toElementStyle(style?: ElementVisualStyle): CSSProperties {
   }
 
   return next;
+}
+
+/**
+ * 從 GlobalDesignStyles 轉換出「元件使用全局樣式時的 CSS」。
+ * 含有底色透明度、邊框粗細、邊框樣式、圓角等全局設定。
+ */
+export function toGlobalComponentStyle(styles?: Partial<GlobalDesignStyles>): CSSProperties {
+  const resolved = resolveGlobalStyles(styles);
+  return {
+    backgroundColor: withAlpha(
+      resolved.componentBackgroundColor || '#FFFFFF',
+      resolved.componentBackgroundOpacity ?? 1
+    ),
+    borderColor: resolved.componentBorderColor,
+    borderWidth: resolved.componentBorderWidth ?? 3,
+    borderStyle: resolved.componentBorderStyle ?? 'solid',
+    borderRadius: `${resolved.componentBorderRadius ?? 32}px`,
+    color: resolved.textColor,
+  };
+}
+
+/**
+ * 計算元件最終的 inline style。
+ * - 若元件使用全局樣式（useGlobalStyle !== false），返回全局設定（含邊框粗細、圓角、透明度）
+ * - 若元件使用自訂樣式，返回 toElementStyle() 的結果，並以全局 textColor 為底色
+ *
+ * 所有渲染位置（EditorView 的 ElementPreview、Profile 的 RenderElement）
+ * 都應使用此函數，以確保兩個渲染路徑行為一致。
+ */
+export function resolveElementStyle(
+  elStyle: ElementVisualStyle | undefined,
+  globalStyles: Partial<GlobalDesignStyles>
+): CSSProperties {
+  const useGlobal = !elStyle || elStyle.useGlobalStyle !== false;
+
+  if (useGlobal) {
+    return toGlobalComponentStyle(globalStyles);
+  }
+
+  // 自訂模式：套用自訂值，但 textColor 仍從全局取得
+  const resolved = resolveGlobalStyles(globalStyles);
+  return {
+    ...toElementStyle(elStyle),
+    color: resolved.textColor,
+  };
 }
 
 export function normalizeSectionAnchor(raw: string): string {

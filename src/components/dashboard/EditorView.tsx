@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useLayoutEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { CardData, CardElement, GlobalDesignStyles } from '../../types';
+import { CardData, CardElement, ElementVisualStyle, GlobalDesignStyles } from '../../types';
 import { Plus, GripVertical, Trash2, Layout, Type, Image as ImageIcon, Link as LinkIcon, Play, Hash, Music, Timer, Heart, Settings, Settings2, Palette, Save, Eye, UploadCloud, Loader2, ChevronDown, List, Tag, ChevronLeft, ChevronRight } from 'lucide-react';
 import { motion, Reorder, AnimatePresence, useDragControls } from 'motion/react';
 import { db } from '../../lib/firebase';
@@ -12,7 +12,7 @@ import { useAuth } from '../../context/AuthContext';
 import { buildEmbedHtmlFromUrl } from '../../lib/embed';
 import MusicPlayer from '../../components/MusicPlayer';
 import { MoodCounter, VisitorCounter } from '../../components/ElementCounters';
-import { DEFAULT_PALETTE, normalizeLinkTarget, resolveGlobalStyles, toElementStyle, toGlobalPageStyle } from '../../lib/cardStyle';
+import { DEFAULT_PALETTE, normalizeLinkTarget, resolveElementStyle, resolveGlobalStyles, toElementStyle, toGlobalPageStyle } from '../../lib/cardStyle';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 import EmojiPicker from 'emoji-picker-react';
@@ -390,7 +390,7 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
                       <div className="text-[10px] text-chocolate/40 font-mono">ID: {activeElement.id}</div>
                     </div>
                   </div>
-                  <InspectorControls el={activeElement} onUpdate={(updates) => handleUpdate(activeElement.id, updates)} cardData={cardData} />
+                  <InspectorControls el={activeElement} onUpdate={(updates) => handleUpdate(activeElement.id, updates)} cardData={cardData} globalStyles={globalStyles} />
                 </>
               ) : null}
             </div>
@@ -471,7 +471,7 @@ function EditorGalleryPreview({
   }, []);
 
   if (images.length === 0) {
-    return <div style={baseComponentStyle} className="w-full p-6 rounded-[2rem] border-3 text-sm opacity-60">圖庫尚未新增圖片</div>;
+    return <div style={baseComponentStyle} className="w-full p-6 text-sm opacity-60">圖庫尚未新增圖片</div>;
   }
 
   if (content.layout === 'slideshow') {
@@ -485,7 +485,7 @@ function EditorGalleryPreview({
     const trackWidth = slideW > 0 ? n * slideW : undefined;
 
     const media = (
-      <div ref={viewportRef} className="relative aspect-square w-full overflow-hidden bg-black/5">
+      <div ref={viewportRef} className="relative aspect-square w-full overflow-hidden">
         <motion.div
           className="flex h-full"
           animate={{ x: xPos }}
@@ -513,7 +513,7 @@ function EditorGalleryPreview({
     );
 
     return (
-      <div style={{ ...baseComponentStyle, ...visualStyle, borderColor }} className="w-full rounded-[2rem] border-3 overflow-hidden">
+      <div style={{ ...baseComponentStyle, ...visualStyle }} className="w-full overflow-hidden">
         {url ? (
           <a href={url} className="block" onPointerDown={(e) => e.stopPropagation()}>
             {media}
@@ -567,7 +567,15 @@ function EditorGalleryPreview({
         const rawLink = String(img.link || '').trim();
         const url = disableLinks ? '' : rawLink ? normalizeLinkTarget(rawLink) : '';
         const inner = (
-          <div className="relative aspect-square w-full overflow-hidden rounded-2xl border-3 bg-black/5 group" style={{ borderColor }}>
+          <div
+            className="relative aspect-square w-full overflow-hidden group"
+            style={{
+              borderColor,
+              borderWidth: (baseComponentStyle as any)?.borderWidth ?? 3,
+              borderStyle: (baseComponentStyle as any)?.borderStyle ?? 'solid',
+              borderRadius: (baseComponentStyle as any)?.borderRadius ?? '1rem',
+            }}
+          >
             <img src={img.url} alt={img.caption || `圖庫 ${idx + 1}`} className={cn('h-full w-full', content.fill ? 'object-cover' : 'object-contain')} />
             {img.caption ? (
               <div className="pointer-events-none absolute inset-x-0 bottom-0 overflow-hidden opacity-100 lg:opacity-0 transition-opacity duration-200 lg:group-hover:opacity-100">
@@ -609,25 +617,16 @@ function ElementPreview({
   editorVisitorMode?: 'live' | 'display';
 }) {
   const { type, content } = el;
-  const visualStyle = toElementStyle(el.style);
-  const baseComponentStyle = {
-    backgroundColor: globalStyles.componentBackgroundColor,
-    borderColor: globalStyles.componentBorderColor,
-    color: globalStyles.textColor,
-  };
+  // resolveElementStyle 會根據 useGlobalStyle 旗標，自動選擇全局或自訂樣式
+  // 並且正確套用 borderWidth, borderStyle, borderRadius, backgroundOpacity 等所有屬性
+  const computedStyle = resolveElementStyle(el.style, globalStyles);
 
   if (type === 'text') {
     const alignClass = content.align === 'left' ? 'text-left' : content.align === 'right' ? 'text-right' : 'text-center';
     const html = DOMPurify.sanitize(marked.parse(String(content.text || '')) as string);
-    const textStyle = {
-      ...baseComponentStyle,
-      ...visualStyle,
-      backgroundColor: visualStyle.backgroundColor || globalStyles?.componentBackgroundColor,
-      color: globalStyles?.textColor,
-    };
     return (
       <div
-        style={textStyle}
+        style={computedStyle}
         className={cn(
           "font-bold leading-tight mx-auto p-5 border-3 rounded-[2rem] w-full",
           alignClass,
@@ -640,14 +639,8 @@ function ElementPreview({
   }
 
   if (type === 'button') {
-    const buttonStyle = {
-      ...baseComponentStyle,
-      ...visualStyle,
-      backgroundColor: visualStyle.backgroundColor || globalStyles.componentBackgroundColor,
-      color: globalStyles.textColor,
-    };
     return (
-      <div style={buttonStyle} className="w-full p-5 border-3 rounded-[2rem] font-bold flex items-center justify-between group pointer-events-none">
+      <div style={computedStyle} className="w-full p-5 border-3 rounded-[2rem] font-bold flex items-center justify-between group pointer-events-none">
         <div className="flex items-center gap-4">
           <div className="w-10 h-10 rounded-2xl flex items-center justify-center text-2xl transition-colors">
             {content.emoji || '🔗'}
@@ -661,10 +654,7 @@ function ElementPreview({
   if (type === 'anon_box') {
     return (
       <div
-        style={{
-          ...baseComponentStyle,
-          borderColor: globalStyles.componentBorderColor,
-        }}
+        style={computedStyle}
         className="w-full p-8 rounded-[2rem] border-3 space-y-4 relative overflow-hidden pointer-events-none"
       >
         <div className="absolute -top-10 -right-10 opacity-10 rotate-12">
@@ -677,20 +667,43 @@ function ElementPreview({
           <h3 className="font-bold text-xl">{content.title || '給我留言'}</h3>
         </div>
         <div className="relative z-10 space-y-4">
-          <div className="w-full bg-white/30 border-3 border-white/50 rounded-[2rem] p-5 truncate opacity-70">
+          <div
+            style={{ borderColor: computedStyle.borderColor, color: computedStyle.color }}
+            className="w-full bg-white/30 border-3 rounded-2xl p-5 truncate opacity-70">
             {content.placeholder || "在此輸入想說的話..."}
           </div>
           <div
-            style={{ backgroundColor: globalStyles.componentBorderColor, color: globalStyles.componentBackgroundColor }}
+            style={{ backgroundColor: computedStyle.borderColor, color: computedStyle.color }}
             className="w-full py-4 rounded-[1.5rem] font-black uppercase tracking-widest flex items-center justify-center gap-2"
           >
             送出悄悄話
           </div>
-          <div className="pt-4 space-y-3 border-t border-white/15">
-            <div className="text-xs font-bold tracking-widest uppercase text-white/80">公開回覆 (預覽)</div>
-            <div className="rounded-2xl bg-white/10 border-3 border-white/20 p-4 space-y-2">
-              <div className="text-[11px] text-white/60">這是預覽留言內容</div>
-              <div className="text-sm text-white font-medium">這是預覽回覆內容</div>
+          <div
+            className="pt-4 space-y-3 border-t"
+            style={{ borderColor: computedStyle.borderColor, color: computedStyle.color }}
+          >
+            <div
+              className="text-xs font-bold tracking-widest uppercase"
+              style={{ color: computedStyle.color }}
+            >
+              公開回覆 (預覽)
+            </div>
+            <div
+              className="rounded-2xl bg-white/10 border-3 p-4 space-y-2"
+              style={{ borderColor: computedStyle.borderColor, color: computedStyle.color }}
+            >
+              <div
+                className="text-[11px] text-white/60"
+                style={{ color: computedStyle.color }}
+              >
+                這是預覽留言內容
+              </div>
+              <div
+                className="text-sm text-white font-medium"
+                style={{ color: computedStyle.color }}
+              >
+                這是預覽回覆內容
+              </div>
             </div>
           </div>
         </div>
@@ -700,15 +713,15 @@ function ElementPreview({
 
   if (type === 'image') {
     return (
-      <div className="relative w-full overflow-hidden rounded-[2rem] border-3 group pointer-events-none" style={{ borderColor: globalStyles.componentBorderColor, ...visualStyle }}>
+      <div className="relative w-full overflow-hidden rounded-[2rem] border-3 group pointer-events-none" style={computedStyle}>
         <img src={content.url} alt="preview" className="w-full h-auto object-cover" />
         {content.caption ? (
           <div className="pointer-events-none absolute inset-x-0 bottom-0 overflow-hidden opacity-100 lg:opacity-0 transition-opacity duration-200 lg:group-hover:opacity-100">
             <div
               className="w-full px-4 py-3 text-sm font-bold line-clamp-3"
               style={{
-                backgroundColor: globalStyles.componentBackgroundColor,
-                color: globalStyles.textColor,
+                backgroundColor: computedStyle.backgroundColor,
+                color: computedStyle.color,
               }}
             >
               {content.caption}
@@ -723,11 +736,11 @@ function ElementPreview({
     return (
       <EditorGalleryPreview
         content={content}
-        baseComponentStyle={baseComponentStyle}
-        visualStyle={visualStyle}
-        borderColor={globalStyles.componentBorderColor}
-        textColor={globalStyles.textColor}
-        componentBgColor={globalStyles.componentBackgroundColor}
+        baseComponentStyle={computedStyle}
+        visualStyle={{}}
+        borderColor={computedStyle.borderColor as string}
+        textColor={computedStyle.color as string}
+        componentBgColor={computedStyle.backgroundColor as string}
         disableLinks
       />
     );
@@ -742,7 +755,7 @@ function ElementPreview({
         <div className="flex items-center gap-3 px-3">
           <div style={{ borderColor: markerColor }} className="h-0 flex-1 border-t border-dashed" />
           <span
-            style={{ color: markerColor, backgroundColor: markerBg, ...visualStyle }}
+            style={{ color: markerColor, backgroundColor: markerBg }}
             className="px-2 text-[11px] font-black tracking-widest uppercase leading-none"
           >
             {marker}
@@ -757,11 +770,11 @@ function ElementPreview({
     const first = content.items?.[0];
     return (
       <div
-        style={{ ...baseComponentStyle, ...visualStyle }}
+        style={computedStyle}
         className="w-full p-5 rounded-[2rem] border-3 flex items-center justify-between"
       >
         <div>
-          <div style={{ color: globalStyles.textColor }} className="text-xs font-bold uppercase tracking-wider opacity-70">{content.label || '下拉選單'}</div>
+          <div style={{ color: computedStyle.color }} className="text-xs font-bold uppercase tracking-wider opacity-70">{content.label || '下拉選單'}</div>
           <div className="text-sm mt-1 truncate">{first ? `${first.label} -> ${first.url}` : '尚未新增選項'}</div>
         </div>
         <ChevronDown size={18} className="opacity-60" />
@@ -774,12 +787,12 @@ function ElementPreview({
     return (
       <div className="flex flex-wrap gap-2">
         {items.length === 0 ? (
-          <div style={baseComponentStyle} className="text-xs px-3 py-2 rounded-xl border-3">尚未新增標籤</div>
+          <div style={computedStyle} className="text-xs px-3 py-2 rounded-xl border-3">尚未新增標籤</div>
         ) : (
           items.map((item: { text?: string; icon?: string }, idx: number) => (
             <div
               key={`tag-${idx}`}
-              style={{ ...baseComponentStyle, ...visualStyle }}
+              style={computedStyle}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-full border-3 font-medium text-sm"
             >
               {item.icon ? <span>{item.icon}</span> : null}
@@ -795,7 +808,15 @@ function ElementPreview({
     const embedHtml = content.html || buildEmbedHtmlFromUrl(content.url || '');
     if (!embedHtml) {
       return (
-        <div className="w-full rounded-[2rem] overflow-hidden border-3 bg-cream flex flex-col items-center justify-center p-8 text-center pointer-events-none">
+        <div
+          style={{
+            borderColor: computedStyle.borderColor,
+            borderWidth: computedStyle.borderWidth ?? 3,
+            borderStyle: computedStyle.borderStyle ?? 'solid',
+            borderRadius: computedStyle.borderRadius ?? '2rem',
+          }}
+          className="w-full overflow-hidden bg-cream flex flex-col items-center justify-center p-8 text-center pointer-events-none"
+        >
           <Play className="text-chocolate/20 mb-4" size={48} />
           <p className="font-bold text-chocolate">嵌入內容區域</p>
           <p className="text-xs text-chocolate/50 font-mono mt-2 truncate w-full">請在屬性面板貼上影音連結或 iframe 代碼</p>
@@ -804,8 +825,13 @@ function ElementPreview({
     }
     return (
       <div
-        style={{ borderColor: globalStyles.componentBorderColor }}
-        className="w-full rounded-[2rem] overflow-hidden border-3 bg-cream flex flex-col items-center justify-center pointer-events-none"
+        style={{
+          borderColor: computedStyle.borderColor,
+          borderWidth: computedStyle.borderWidth ?? 3,
+          borderStyle: computedStyle.borderStyle ?? 'solid',
+          borderRadius: computedStyle.borderRadius ?? '2rem',
+        }}
+        className="w-full overflow-hidden bg-cream flex flex-col items-center justify-center pointer-events-none"
       >
         <StableEmbedHtml embedHtml={embedHtml} />
       </div>
@@ -816,7 +842,7 @@ function ElementPreview({
     const rawUrl = String(content.url || '').trim();
     if (!rawUrl) {
       return (
-        <div style={baseComponentStyle} className="w-full rounded-[2rem] border-3 p-6 text-center">
+        <div style={computedStyle} className="w-full rounded-[2rem] border-3 p-6 text-center">
           <Music className="mx-auto mb-2 opacity-40" />
           <div className="text-sm opacity-70">貼上 YouTube 或 YouTube Music 連結</div>
         </div>
@@ -826,35 +852,24 @@ function ElementPreview({
       <div onPointerDown={(e) => e.stopPropagation()}>
         <MusicPlayer
           url={rawUrl}
-          borderColor={globalStyles.componentBorderColor}
-          textColor={globalStyles.textColor}
-          style={{ ...baseComponentStyle, ...visualStyle }}
+          borderColor={computedStyle.borderColor as string}
+          textColor={computedStyle.color as string}
+          style={computedStyle}
         />
       </div>
     );
   }
 
   if (type === 'countdown') {
-    return <CountdownBlock title={content.title} targetAt={content.targetAt} style={baseComponentStyle} />;
+    return <CountdownBlock title={content.title} targetAt={content.targetAt} style={computedStyle} />;
   }
 
   if (type === 'visitor') {
-    const merged = {
-      ...baseComponentStyle,
-      ...visualStyle,
-      backgroundColor: visualStyle.backgroundColor || globalStyles.componentBackgroundColor,
-    };
-    return <VisitorCounter mode={editorVisitorMode} cardId={cardId} elementId={el.id} content={content} style={merged} />;
+    return <VisitorCounter mode={editorVisitorMode} cardId={cardId} elementId={el.id} content={content} style={computedStyle} />;
   }
 
   if (type === 'mood') {
-    const merged = {
-      ...baseComponentStyle,
-      ...visualStyle,
-      backgroundColor: visualStyle.backgroundColor || globalStyles.componentBackgroundColor,
-      color: globalStyles.textColor,
-    };
-    return <MoodCounter mode="live" cardId={cardId} elementId={el.id} content={content} style={merged} />;
+    return <MoodCounter mode="live" cardId={cardId} elementId={el.id} content={content} style={computedStyle} />;
   }
 
   return <div className="p-4 bg-cream rounded-xl text-[10px] text-chocolate/40 font-bold uppercase">{type} ELEMENT</div>;
@@ -1066,12 +1081,70 @@ function GlobalStyleControls({ styles, onChange }: { styles: GlobalDesignStyles;
                 selected={styles.componentBackgroundColor || '#FFFFFF'}
                 onPick={(color) => update('componentBackgroundColor', color)}
               />
+              {/* 元件底色透明度 */}
+              <div className="space-y-1">
+                <div className="flex justify-between text-[10px] font-bold text-chocolate/40">
+                  <span>元件底色透明度</span>
+                  <span>{Math.round((styles.componentBackgroundOpacity ?? 1) * 100)}%</span>
+                </div>
+                <input
+                  type="range"
+                  min={0} max={1} step={0.05}
+                  value={styles.componentBackgroundOpacity ?? 1}
+                  onChange={(e) => update('componentBackgroundOpacity', parseFloat(e.target.value))}
+                  className="w-full h-2 rounded-full accent-cat-blue cursor-pointer"
+                />
+              </div>
               <PaletteSelector
-                title="元件邊框"
+                title="元件邊框色"
                 palette={palette}
                 selected={styles.componentBorderColor || '#3D2B1F'}
                 onPick={(color) => update('componentBorderColor', color)}
               />
+              {/* 元件邊框粗細 & 樣式 */}
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <div className="text-[11px] font-bold text-chocolate/50">邊框粗細</div>
+                  <select
+                    value={styles.componentBorderWidth ?? 3}
+                    onChange={(e) => update('componentBorderWidth', Number(e.target.value))}
+                    className="w-full p-2 bg-white rounded-xl text-xs outline-none"
+                  >
+                    <option value={0}>無邊框</option>
+                    <option value={1}>細 (1px)</option>
+                    <option value={2}>中 (2px)</option>
+                    <option value={3}>粗 (3px)</option>
+                    <option value={4}>特粗 (4px)</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <div className="text-[11px] font-bold text-chocolate/50">邊框樣式</div>
+                  <select
+                    value={styles.componentBorderStyle ?? 'solid'}
+                    onChange={(e) => update('componentBorderStyle', e.target.value as any)}
+                    className="w-full p-2 bg-white rounded-xl text-xs outline-none"
+                  >
+                    <option value="solid">實線</option>
+                    <option value="dashed">虛線</option>
+                    <option value="dotted">點線</option>
+                    <option value="double">雙線</option>
+                  </select>
+                </div>
+              </div>
+              {/* 全局元件圓角 */}
+              <div className="space-y-1">
+                <div className="flex justify-between text-[11px] font-bold text-chocolate/50">
+                  <span>圓角</span>
+                  <span>{styles.componentBorderRadius ?? 32}px</span>
+                </div>
+                <input
+                  type="range"
+                  min={0} max={64} step={4}
+                  value={styles.componentBorderRadius ?? 32}
+                  onChange={(e) => update('componentBorderRadius', Number(e.target.value))}
+                  className="w-full h-2 rounded-full accent-cat-blue cursor-pointer"
+                />
+              </div>
             </div>
           </motion.div>
         )}
@@ -1256,8 +1329,13 @@ function CountdownBlock({ title, targetAt, style }: { title?: string; targetAt?:
   );
 }
 
-function InspectorControls({ el, onUpdate, cardData }: { el: CardElement, onUpdate: (u: any) => void, cardData?: CardData }) {
+function InspectorControls({ el, onUpdate, cardData, globalStyles }: { el: CardElement, onUpdate: (u: any) => void, cardData?: CardData, globalStyles?: GlobalDesignStyles }) {
   const { type, content } = el;
+  const palette = (globalStyles?.palette && globalStyles.palette.length > 0 ? globalStyles.palette : DEFAULT_PALETTE).slice(0, 10);
+
+  const updateStyle = (patch: Partial<ElementVisualStyle>) => {
+    onUpdate({ style: { ...(el.style || {}), ...patch } });
+  };
 
   const handleChange = (key: string, value: any) => {
     onUpdate({ content: { ...content, [key]: value } });
@@ -1322,6 +1400,7 @@ function InspectorControls({ el, onUpdate, cardData }: { el: CardElement, onUpda
             </button>
           ))}
         </div>
+        <ElementStyleControls style={el.style || {}} palette={palette} globalStyles={globalStyles} onUpdate={updateStyle} />
       </div>
     );
   }
@@ -1344,6 +1423,7 @@ function InspectorControls({ el, onUpdate, cardData }: { el: CardElement, onUpda
           className="w-full p-4 bg-cream border-none rounded-xl text-sm outline-none focus:ring-2 ring-cat-blue/20"
           placeholder="輸入區段錨點或網址"
         />
+        <ElementStyleControls style={el.style || {}} palette={palette} globalStyles={globalStyles} onUpdate={updateStyle} />
       </div>
     );
   }
@@ -1379,6 +1459,7 @@ function InspectorControls({ el, onUpdate, cardData }: { el: CardElement, onUpda
           className="w-full p-4 bg-cream border-none rounded-xl text-sm outline-none focus:ring-2 ring-cat-blue/20"
           placeholder="輸入區段錨點或網址"
         />
+        <ElementStyleControls style={el.style || {}} palette={palette} globalStyles={globalStyles} onUpdate={updateStyle} />
       </div>
     );
   }
@@ -1417,6 +1498,7 @@ function InspectorControls({ el, onUpdate, cardData }: { el: CardElement, onUpda
             <li><strong>其他平台:</strong> 可貼上 iframe 嵌入代碼。</li>
           </ul>
         </div>
+        <ElementStyleControls style={el.style || {}} palette={palette} globalStyles={globalStyles} onUpdate={updateStyle} />
       </div>
     );
   }
@@ -1434,12 +1516,13 @@ function InspectorControls({ el, onUpdate, cardData }: { el: CardElement, onUpda
           className="w-full p-4 bg-cream border-none rounded-xl text-sm outline-none focus:ring-2 ring-cat-blue/20"
           placeholder="貼上 YouTube 或 YouTube Music 連結"
         />
+        <ElementStyleControls style={el.style || {}} palette={palette} globalStyles={globalStyles} onUpdate={updateStyle} />
       </div>
     );
   }
 
   if (type === 'gallery') {
-    return <GalleryInspector content={content} handleChange={handleChange} />;
+    return <GalleryInspector content={content} handleChange={handleChange} style={el.style || {}} palette={palette} globalStyles={globalStyles} onUpdateStyle={updateStyle} />;
   }
 
   if (type === 'countdown') {
@@ -1449,6 +1532,7 @@ function InspectorControls({ el, onUpdate, cardData }: { el: CardElement, onUpda
         <input value={content.title || ''} onChange={(e) => handleChange('title', e.target.value)} className="w-full p-4 bg-cream border-none rounded-xl text-sm outline-none focus:ring-2 ring-cat-blue/20" />
         <label className="block text-xs font-bold text-chocolate/40">目標時間</label>
         <input type="datetime-local" value={toLocalDatetimeInputValue(content.targetAt)} onChange={(e) => handleChange('targetAt', fromLocalDatetimeInputValue(e.target.value))} className="w-full p-4 bg-cream border-none rounded-xl text-sm outline-none focus:ring-2 ring-cat-blue/20" />
+        <ElementStyleControls style={el.style || {}} palette={palette} globalStyles={globalStyles} onUpdate={updateStyle} />
       </div>
     );
   }
@@ -1460,6 +1544,7 @@ function InspectorControls({ el, onUpdate, cardData }: { el: CardElement, onUpda
         <input value={content.title || ''} onChange={(e) => handleChange('title', e.target.value)} className="w-full p-4 bg-cream border-none rounded-xl text-sm outline-none focus:ring-2 ring-cat-blue/20" />
         <label className="block text-xs font-bold text-chocolate/40">前綴圖示</label>
         <EmojiPickerControl value={content.prefix || '👀'} onChange={(emoji) => handleChange('prefix', emoji)} />
+        <ElementStyleControls style={el.style || {}} palette={palette} globalStyles={globalStyles} onUpdate={updateStyle} />
       </div>
     );
   }
@@ -1471,6 +1556,7 @@ function InspectorControls({ el, onUpdate, cardData }: { el: CardElement, onUpda
         <EmojiPickerControl value={content.emoji || '❤️'} onChange={(emoji) => handleChange('emoji', emoji)} />
         <label className="block text-xs font-bold text-chocolate/40">按鈕文字</label>
         <input value={content.title || ''} onChange={(e) => handleChange('title', e.target.value)} className="w-full p-4 bg-cream border-none rounded-xl text-sm outline-none focus:ring-2 ring-cat-blue/20" />
+        <ElementStyleControls style={el.style || {}} palette={palette} globalStyles={globalStyles} onUpdate={updateStyle} />
       </div>
     );
   }
@@ -1498,6 +1584,7 @@ function InspectorControls({ el, onUpdate, cardData }: { el: CardElement, onUpda
           onChange={(e) => handleChange('placeholder', e.target.value)}
           className="w-full p-4 bg-cream border-none rounded-xl text-sm outline-none focus:ring-2 ring-cat-blue/20"
         />
+        <ElementStyleControls style={el.style || {}} palette={palette} globalStyles={globalStyles} onUpdate={updateStyle} />
       </div>
     );
   }
@@ -1534,23 +1621,201 @@ function InspectorControls({ el, onUpdate, cardData }: { el: CardElement, onUpda
             固定區段不需要名稱或 # 錨點。
           </div>
         )}
+        <ElementStyleControls style={el.style || {}} palette={palette} globalStyles={globalStyles} onUpdate={updateStyle} />
       </div>
     );
   }
 
   if (type === 'dropdown') {
-    return <DropdownInspector content={content} handleChange={handleChange} />;
+    return <DropdownInspector content={content} handleChange={handleChange} style={el.style || {}} palette={palette} globalStyles={globalStyles} onUpdateStyle={updateStyle} />;
   }
 
   if (type === 'tags') {
-    return <TagsInspector content={content} handleChange={handleChange} />;
+    return <TagsInspector content={content} handleChange={handleChange} style={el.style || {}} palette={palette} globalStyles={globalStyles} onUpdateStyle={updateStyle} />;
   }
 
   return <div className="text-xs text-chocolate/30 py-8 italic text-center">此組件暫無屬性面板。</div>;
 }
 
+// ─── 通用元件樣式設定控制器 ────────────────────────────────────────────
+function ElementStyleControls({
+  style,
+  palette,
+  globalStyles,
+  onUpdate,
+}: {
+  style: ElementVisualStyle;
+  palette: string[];
+  globalStyles?: GlobalDesignStyles;
+  onUpdate: (patch: Partial<ElementVisualStyle>) => void;
+}) {
+  const useGlobal = style.useGlobalStyle !== false;
+
+  // 切換為自訂樣式時，自動帶入全局色彩作為初始値
+  const handleToggleGlobal = () => {
+    if (useGlobal) {
+      onUpdate({
+        useGlobalStyle: false,
+        backgroundColor: style.backgroundColor || globalStyles?.componentBackgroundColor || '#FFFFFF',
+        backgroundOpacity: style.backgroundOpacity ?? (globalStyles?.componentBackgroundOpacity ?? 1),
+        borderColor: style.borderColor || globalStyles?.componentBorderColor || '#3D2B1F',
+        borderWidth: style.borderWidth ?? (globalStyles?.componentBorderWidth ?? 3),
+        borderStyle: style.borderStyle || (globalStyles?.componentBorderStyle as any) || 'solid',
+        radius: style.radius ?? (globalStyles?.componentBorderRadius ?? 32),
+      });
+    } else {
+      onUpdate({ useGlobalStyle: true });
+    }
+  };
+
+  return (
+    <div className="mt-4 rounded-2xl border-3 border-chocolate/10 bg-white/70 overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-chocolate/10">
+        <div className="flex items-center gap-2">
+          <Palette size={15} className="text-chocolate/50" />
+          <span className="text-xs font-black text-chocolate/70">元件樣式</span>
+        </div>
+        <button
+          type="button"
+          onClick={handleToggleGlobal}
+          className={cn(
+            'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
+            useGlobal ? 'bg-cat-blue' : 'bg-chocolate/20'
+          )}
+          title={useGlobal ? '目前使用全局樣式，點擊切換為自訂' : '目前使用自訂樣式，點擊切換為全局'}
+        >
+          <span
+            className={cn(
+              'inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform',
+              useGlobal ? 'translate-x-6' : 'translate-x-1'
+            )}
+          />
+        </button>
+      </div>
+
+      <div className="px-4 py-2 text-[10px] text-chocolate/40 font-bold">
+        {useGlobal ? '✓ 跟隨全局設定（底色、邊框皆套用全局主題）' : '✎ 自訂樣式（以下設定僅套用於此元件）'}
+      </div>
+
+      <AnimatePresence initial={false}>
+        {!useGlobal && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div className="px-4 pb-4 space-y-4 border-t border-chocolate/10">
+              {/* 底色 */}
+              <div className="space-y-2 pt-3">
+                <div className="text-[11px] font-bold text-chocolate/50">底色</div>
+                <div className="grid grid-cols-6 gap-2">
+                  {palette.map((color, i) => (
+                    <button
+                      key={`bg-${i}`}
+                      type="button"
+                      onClick={() => onUpdate({ backgroundColor: color })}
+                      className={cn(
+                        'h-8 w-8 rounded-md border-3 transition-transform hover:scale-105',
+                        (style.backgroundColor || '').toLowerCase() === color.toLowerCase()
+                          ? 'border-chocolate shadow-md' : 'border-white/70'
+                      )}
+                      style={{ backgroundColor: color }}
+                      title={color}
+                    />
+                  ))}
+                </div>
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[10px] font-bold text-chocolate/40">
+                    <span>透明度</span>
+                    <span>{Math.round((style.backgroundOpacity ?? 1) * 100)}%</span>
+                  </div>
+                  <input
+                    type="range" min={0} max={1} step={0.05}
+                    value={style.backgroundOpacity ?? 1}
+                    onChange={(e) => onUpdate({ backgroundOpacity: parseFloat(e.target.value) })}
+                    className="w-full h-2 rounded-full accent-cat-blue cursor-pointer"
+                  />
+                </div>
+              </div>
+
+              {/* 邊框顏色 */}
+              <div className="space-y-2">
+                <div className="text-[11px] font-bold text-chocolate/50">邊框顏色</div>
+                <div className="grid grid-cols-6 gap-2">
+                  {palette.map((color, i) => (
+                    <button
+                      key={`bd-${i}`}
+                      type="button"
+                      onClick={() => onUpdate({ borderColor: color })}
+                      className={cn(
+                        'h-8 w-8 rounded-md border-3 transition-transform hover:scale-105',
+                        (style.borderColor || '').toLowerCase() === color.toLowerCase()
+                          ? 'border-chocolate shadow-md' : 'border-white/70'
+                      )}
+                      style={{ backgroundColor: color }}
+                      title={color}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* 邊框粗細 & 樣式 */}
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <div className="text-[11px] font-bold text-chocolate/50">邊框粗細</div>
+                  <select
+                    value={style.borderWidth ?? 3}
+                    onChange={(e) => onUpdate({ borderWidth: Number(e.target.value) })}
+                    className="w-full p-2 bg-cream rounded-xl text-xs outline-none"
+                  >
+                    <option value={0}>無邊框</option>
+                    <option value={1}>細 (1px)</option>
+                    <option value={2}>中 (2px)</option>
+                    <option value={3}>粗 (3px)</option>
+                    <option value={4}>特粗 (4px)</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <div className="text-[11px] font-bold text-chocolate/50">邊框樣式</div>
+                  <select
+                    value={style.borderStyle ?? 'solid'}
+                    onChange={(e) => onUpdate({ borderStyle: e.target.value as any })}
+                    className="w-full p-2 bg-cream rounded-xl text-xs outline-none"
+                  >
+                    <option value="solid">實線</option>
+                    <option value="dashed">虛線</option>
+                    <option value="dotted">點線</option>
+                    <option value="double">雙線</option>
+                    <option value="wavy">波浪線</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* 圓角 */}
+              <div className="space-y-1">
+                <div className="flex justify-between text-[11px] font-bold text-chocolate/50">
+                  <span>圓角</span>
+                  <span>{style.radius ?? 32}px</span>
+                </div>
+                <input
+                  type="range" min={0} max={64} step={4}
+                  value={style.radius ?? 32}
+                  onChange={(e) => onUpdate({ radius: Number(e.target.value) })}
+                  className="w-full h-2 rounded-full accent-cat-blue cursor-pointer"
+                />
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 type DropdownItem = { label: string; url: string };
-function DropdownInspector({ content, handleChange }: { content: any; handleChange: (key: string, value: any) => void }) {
+function DropdownInspector({ content, handleChange, style, palette, globalStyles, onUpdateStyle }: { content: any; handleChange: (key: string, value: any) => void; style: ElementVisualStyle; palette: string[]; globalStyles?: GlobalDesignStyles; onUpdateStyle: (patch: Partial<ElementVisualStyle>) => void }) {
   const items: DropdownItem[] = content.items || [];
   const keyMapRef = useRef<WeakMap<DropdownItem, string>>(new WeakMap());
   const counterRef = useRef(0);
@@ -1608,12 +1873,13 @@ function DropdownInspector({ content, handleChange }: { content: any; handleChan
       >
         新增選項
       </button>
+      <ElementStyleControls style={style} palette={palette} globalStyles={globalStyles} onUpdate={onUpdateStyle} />
     </div>
   );
 }
 
 type TagItem = { text: string; icon?: string };
-function TagsInspector({ content, handleChange }: { content: any; handleChange: (key: string, value: any) => void }) {
+function TagsInspector({ content, handleChange, style, palette, globalStyles, onUpdateStyle }: { content: any; handleChange: (key: string, value: any) => void; style: ElementVisualStyle; palette: string[]; globalStyles?: GlobalDesignStyles; onUpdateStyle: (patch: Partial<ElementVisualStyle>) => void }) {
   const items: TagItem[] = content.items || [];
   const keyMapRef = useRef<WeakMap<TagItem, string>>(new WeakMap());
   const counterRef = useRef(0);
@@ -1662,6 +1928,7 @@ function TagsInspector({ content, handleChange }: { content: any; handleChange: 
       >
         新增標籤
       </button>
+      <ElementStyleControls style={style} palette={palette} globalStyles={globalStyles} onUpdate={onUpdateStyle} />
     </div>
   );
 }
@@ -1870,7 +2137,7 @@ function EmojiPickerControl({ value, onChange }: { value: string; onChange: (emo
   );
 }
 
-function GalleryInspector({ content, handleChange }: { content: any; handleChange: (key: string, value: any) => void }) {
+function GalleryInspector({ content, handleChange, style, palette, globalStyles, onUpdateStyle }: { content: any; handleChange: (key: string, value: any) => void; style: ElementVisualStyle; palette: string[]; globalStyles?: GlobalDesignStyles; onUpdateStyle: (patch: Partial<ElementVisualStyle>) => void }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const images: any[] = Array.isArray(content.images) ? content.images : [];
@@ -1941,7 +2208,7 @@ function GalleryInspector({ content, handleChange }: { content: any; handleChang
                 {isOpen && (
                   <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden">
                     <div className="border-t border-chocolate/10">
-                      <div className="relative aspect-square w-full bg-black/5">
+                      <div className="relative aspect-square w-full">
                         {img.url ? (
                           <img src={img.url} alt={img.caption || `圖片 ${index + 1}`} className="absolute inset-0 h-full w-full object-cover" />
                         ) : (
@@ -2001,6 +2268,7 @@ function GalleryInspector({ content, handleChange }: { content: any; handleChang
       <button onClick={() => updateImages([...images, { url: '', caption: '', link: '' }])} className="w-full p-3 rounded-xl text-xs font-bold bg-white border-3 border-chocolate/10 hover:bg-chocolate hover:text-white transition-colors">
         新增圖片
       </button>
+      <ElementStyleControls style={style} palette={palette} globalStyles={globalStyles} onUpdate={onUpdateStyle} />
     </div>
   );
 }

@@ -304,8 +304,15 @@ function YouTubeBarPlayer({
 
   return (
     <div
-      style={{ ...style, borderColor, ...(uiColor ? { color: uiColor, ['--eurek-music' as any]: uiColor } : {}) }}
-      className={cn('w-full rounded-[2rem] border-3 overflow-hidden bg-white/40', !uiColor && 'text-chocolate', className)}
+      style={{
+        ...style,
+        borderColor: borderColor || (style as any)?.borderColor,
+        borderWidth: (style as any)?.borderWidth ?? 3,
+        borderStyle: (style as any)?.borderStyle ?? 'solid',
+        borderRadius: (style as any)?.borderRadius ?? '2rem',
+        ...(uiColor ? { color: uiColor, ['--eurek-music' as any]: uiColor } : {}),
+      }}
+      className={cn('w-full overflow-hidden bg-white/40', !uiColor && 'text-chocolate', className)}
     >
       <div ref={hostRef} className="pointer-events-none fixed left-[-240px] top-0 h-[200px] w-[200px] opacity-0" aria-hidden />
 

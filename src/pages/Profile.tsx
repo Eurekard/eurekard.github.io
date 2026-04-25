@@ -9,7 +9,7 @@ import { cn } from '../lib/utils';
 import { buildEmbedHtmlFromUrl } from '../lib/embed';
 import MusicPlayer from '../components/MusicPlayer';
 import { MoodCounter, VisitorCounter } from '../components/ElementCounters';
-import { isHashLink, normalizeLinkTarget, resolveGlobalStyles, toElementStyle, toGlobalPageStyle } from '../lib/cardStyle';
+import { isHashLink, normalizeLinkTarget, resolveElementStyle, resolveGlobalStyles, toElementStyle, toGlobalPageStyle } from '../lib/cardStyle';
 import { trackCardView, trackCardClick } from '../lib/ga4';
 import { detectDevice, detectSource, getAnalyticsDay } from '../lib/analytics';
 import DOMPurify from 'dompurify';
@@ -443,25 +443,16 @@ function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, se
   onHashNavigate: (hash: string) => void;
 }) {
   const { type, content } = el;
-  const visualStyle = toElementStyle(el.style);
-  const baseComponentStyle = {
-    backgroundColor: globalStyles?.componentBackgroundColor,
-    borderColor: globalStyles?.componentBorderColor,
-    color: globalStyles?.textColor,
-  };
+  // resolveElementStyle 會根據 useGlobalStyle 旗標，自動選擇全局或自訂樣式
+  // 並且正確套用 borderWidth, borderStyle, borderRadius, backgroundOpacity 等所有屬性
+  const computedStyle = resolveElementStyle(el.style, globalStyles);
 
   if (type === 'text') {
     const alignClass = content.align === 'left' ? 'text-left' : content.align === 'right' ? 'text-right' : 'text-center';
     const html = DOMPurify.sanitize(marked.parse(String(content.text || '')) as string);
-    const textStyle = {
-      ...baseComponentStyle,
-      ...visualStyle,
-      backgroundColor: visualStyle.backgroundColor || globalStyles?.componentBackgroundColor,
-      color: globalStyles?.textColor,
-    };
     return (
       <div
-        style={textStyle}
+        style={computedStyle}
         className={cn(
           "font-bold leading-tight mx-auto p-5 border-3 rounded-[2rem] w-full",
           alignClass,
@@ -480,12 +471,6 @@ function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, se
     const rawUrl = content.url || '';
     const url = normalizeLinkTarget(rawUrl);
     const hashLink = isHashLink(url);
-    const buttonStyle = {
-      ...baseComponentStyle,
-      ...visualStyle,
-      backgroundColor: visualStyle.backgroundColor || globalStyles?.componentBackgroundColor,
-      color: globalStyles?.textColor,
-    };
     return (
       <motion.a
         whileHover={{ scale: 1.02 }}
@@ -500,7 +485,7 @@ function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, se
         }}
         target={hashLink ? undefined : '_blank'}
         rel={hashLink ? undefined : 'noopener noreferrer'}
-        style={{ ...buttonStyle, willChange: 'transform' }}
+        style={{ ...computedStyle, willChange: 'transform' }}
         className="w-full p-5 border-3 rounded-[2rem] font-bold flex items-center justify-between group"
       >
         <div className="flex items-center gap-4">
@@ -516,10 +501,7 @@ function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, se
   if (type === 'anon_box') {
     return (
       <div
-        style={{
-          ...baseComponentStyle,
-          borderColor: globalStyles?.componentBorderColor,
-        }}
+        style={computedStyle}
         className="w-full p-8 rounded-[2rem] border-3 space-y-4 relative overflow-hidden group"
       >
         <div className="absolute -top-10 -right-10 opacity-10 rotate-12 transition-transform duration-1000 group-hover:scale-150">
@@ -539,30 +521,49 @@ function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, se
             value={anonMessage}
             onChange={(e) => setAnonMessage(e.target.value)}
             rows={3}
-            className="w-full bg-white/30 border-3 border-white/50 rounded-[2rem] p-5 outline-none focus:ring-4 ring-white/20 placeholder:text-current/40 text-current resize-none"
+            style={{ borderColor: globalStyles?.componentBorderColor, color: globalStyles?.componentColor }}
+            className="w-full bg-white/30 border-3 rounded-2xl p-5 outline-none focus:ring-2 placeholder:text-current/40 text-current resize-none"
           />
           <button
             onClick={onSendAnon}
             disabled={sent || !anonMessage.trim()}
-            style={{ backgroundColor: globalStyles?.componentBorderColor, color: globalStyles?.componentBackgroundColor }}
+            style={{ backgroundColor: globalStyles?.componentBorderColor, color: globalStyles?.componentColor }}
             className={cn(
               "w-full py-4 rounded-[1.5rem] font-black uppercase tracking-widest transition-all scale-100 active:scale-95 flex items-center justify-center gap-2",
-              sent ? "bg-green-500 text-white" : "hover:opacity-90"
+              sent ? "bg-green-500 text-white" : "hover:opacity-60"
             )}
           >
             {sent ? <><CheckCircle2 /> 已傳送</> : <><Send size={18} /> 送出悄悄話</>}
           </button>
 
           {isReplyEnabled && (
-            <div className="pt-4 space-y-3 border-t border-white/15">
-              <div className="text-xs font-bold tracking-widest uppercase text-white/80">公開回覆</div>
+            <div
+              className="pt-4 space-y-3 border-t"
+              style={{ borderColor: globalStyles?.componentBorderColor, color: globalStyles?.componentColor }}
+            >
+              <div
+                style={{ color: globalStyles?.componentColor }}
+                className="text-xs font-bold tracking-widest uppercase"
+              >
+                公開回覆
+              </div>
               {publicReplies.length === 0 ? (
                 <div className="text-sm text-white/55">目前還沒有公開回覆</div>
               ) : (
                 publicReplies.slice(0, 8).map((row: AnonResponse) => (
-                  <div key={row.id} className="rounded-2xl bg-white/10 border-3 border-white/20 p-4 space-y-2">
-                    <div className="text-[11px] text-white/60">{row.message}</div>
-                    <div className="text-sm text-white font-medium">{row.reply}</div>
+                  <div
+                    key={row.id}
+                    style={{ borderColor: globalStyles?.componentBorderColor, color: globalStyles?.componentColor }}
+                    className="rounded-2xl bg-white/10 border-3 p-4 space-y-2"
+                  >
+                    <div
+                      className="text-[11px]"
+                      style={{ color: globalStyles?.componentColor }}
+                    >{row.message}</div>
+                    <div
+                      className="text-sm font-medium"
+                      style={{ color: globalStyles?.componentColor }}
+                    >{row.reply}</div>
                   </div>
                 ))
               )}
@@ -578,7 +579,7 @@ function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, se
     const url = rawLink ? normalizeLinkTarget(rawLink) : '';
     const hashLink = isHashLink(url);
     const inner = (
-      <div className="relative w-full overflow-hidden rounded-[2rem] border-3 group" style={{ borderColor: globalStyles?.componentBorderColor, ...visualStyle }}>
+      <div className="relative w-full overflow-hidden rounded-[2rem] border-3 group" style={{ ...computedStyle }}>
         <img
           src={content.url}
           alt={content.caption || "card image"}
@@ -627,11 +628,11 @@ function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, se
     return (
       <GalleryBlock
         content={content}
-        baseComponentStyle={baseComponentStyle}
-        visualStyle={visualStyle}
-        borderColor={globalStyles?.componentBorderColor}
-        textColor={globalStyles?.textColor}
-        componentBgColor={globalStyles?.componentBackgroundColor}
+        baseComponentStyle={computedStyle}
+        visualStyle={{}}
+        borderColor={computedStyle.borderColor as string}
+        textColor={computedStyle.color as string}
+        componentBgColor={computedStyle.backgroundColor as string}
         onTrackClick={() => void onTrackClick(el.id)}
         onHashNavigate={onHashNavigate}
       />
@@ -645,7 +646,7 @@ function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, se
   if (type === 'dropdown') {
     const items = Array.isArray(content.items) ? content.items : [];
     return (
-      <div style={{ ...baseComponentStyle, ...visualStyle }} className="w-full p-5 rounded-[2rem] border-3">
+      <div style={computedStyle} className="w-full p-5 rounded-[2rem] border-3">
         <AnimatedDropdown
           label={content.label || '下拉選單'}
           items={items}
@@ -665,7 +666,7 @@ function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, se
         {items.map((item: { icon?: string; text?: string }, index: number) => (
           <span
             key={`tag-public-${index}`}
-            style={{ ...baseComponentStyle, ...visualStyle }}
+            style={computedStyle}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-full border-3 text-sm font-medium"
           >
             {item.icon ? <span>{item.icon}</span> : null}
@@ -681,8 +682,13 @@ function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, se
     if (!embedHtml) return null;
     return (
       <div
-        style={{ borderColor: globalStyles?.componentBorderColor }}
-        className="w-full rounded-[2rem] overflow-hidden border-3 bg-cream flex flex-col items-center justify-center embed-container"
+        style={{
+          borderColor: computedStyle.borderColor,
+          borderWidth: computedStyle.borderWidth ?? 3,
+          borderStyle: computedStyle.borderStyle ?? 'solid',
+          borderRadius: computedStyle.borderRadius ?? '2rem',
+        }}
+        className="w-full overflow-hidden bg-cream flex flex-col items-center justify-center embed-container"
         dangerouslySetInnerHTML={{ __html: embedHtml }}
       />
     );
@@ -692,7 +698,7 @@ function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, se
     const rawUrl = String(content.url || '').trim();
     if (!rawUrl) {
       return (
-        <div style={{ ...baseComponentStyle, ...visualStyle }} className="w-full rounded-[2rem] border-3 p-6 text-center">
+        <div style={computedStyle} className="w-full p-6 text-center">
           <div className="text-sm opacity-70">尚未設定音樂連結</div>
         </div>
       );
@@ -700,23 +706,23 @@ function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, se
     return (
       <MusicPlayer
         url={rawUrl}
-        borderColor={globalStyles?.componentBorderColor}
-        textColor={globalStyles?.textColor}
-        style={{ ...baseComponentStyle, ...visualStyle }}
+        borderColor={computedStyle.borderColor as string}
+        textColor={computedStyle.color as string}
+        style={computedStyle}
       />
     );
   }
 
   if (type === 'countdown') {
-    return <CountdownDisplay title={content.title} targetAt={content.targetAt} style={{ ...baseComponentStyle, ...visualStyle }} />;
+    return <CountdownDisplay title={content.title} targetAt={content.targetAt} style={computedStyle} />;
   }
 
   if (type === 'visitor') {
-    return <VisitorCounter mode="live" cardId={cardId} elementId={el.id} content={content} style={{ ...baseComponentStyle, ...visualStyle }} />;
+    return <VisitorCounter mode="live" cardId={cardId} elementId={el.id} content={content} style={computedStyle} />;
   }
 
   if (type === 'mood') {
-    return <MoodCounter mode="live" cardId={cardId} elementId={el.id} content={content} style={{ ...baseComponentStyle, ...visualStyle }} />;
+    return <MoodCounter mode="live" cardId={cardId} elementId={el.id} content={content} style={computedStyle} />;
   }
 
   return null;
@@ -757,7 +763,12 @@ function GalleryBlock({
   }, []);
 
   if (images.length === 0) {
-    return <div style={{ ...baseComponentStyle, ...visualStyle }} className="w-full rounded-[2rem] border-3 p-6 text-sm opacity-60">圖庫尚未新增圖片</div>;
+    return (
+      <div
+        style={{ ...baseComponentStyle, ...visualStyle }}
+        className="w-full p-6 text-sm opacity-60"
+      >圖庫尚未新增圖片</div>
+    );
   }
 
   if (content.layout === 'slideshow') {
@@ -861,7 +872,15 @@ function GalleryBlock({
         const url = rawLink ? normalizeLinkTarget(rawLink) : '';
         const hashLink = isHashLink(url);
         const inner = (
-          <div className="relative aspect-square w-full overflow-hidden rounded-2xl border-3 bg-black/5 group" style={{ borderColor }}>
+          <div
+            className="relative aspect-square w-full overflow-hidden bg-black/5 group"
+            style={{
+              borderColor,
+              borderWidth: (baseComponentStyle as any)?.borderWidth ?? 3,
+              borderStyle: (baseComponentStyle as any)?.borderStyle ?? 'solid',
+              borderRadius: (baseComponentStyle as any)?.borderRadius ?? '1rem',
+            }}
+          >
             <img
               src={img.url}
               alt={img.caption || `圖庫 ${idx + 1}`}

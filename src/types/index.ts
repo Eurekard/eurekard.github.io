@@ -38,7 +38,11 @@ export interface GlobalDesignStyles {
   palette?: string[];
   textColor?: string;
   componentBackgroundColor?: string;
+  componentBackgroundOpacity?: number;
   componentBorderColor?: string;
+  componentBorderWidth?: number;
+  componentBorderStyle?: 'solid' | 'dashed' | 'dotted' | 'double';
+  componentBorderRadius?: number;
 }
 
 export interface CardData {
