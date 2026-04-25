@@ -7,3 +7,10 @@ coverage/
 .env*
 !.env.example
 AI-STUDIO-CHAT.md
+.vercel
+.env*.local
+
+# Google Cloud service account key files (never commit these)
+*-service-account*.json
+gen-lang-client-*.json
+firebase-adminsdk-*.json
