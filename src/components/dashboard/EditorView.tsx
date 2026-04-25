@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useRef, useLayoutEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { CardData, CardElement, ElementVisualStyle, GlobalDesignStyles } from '../../types';
+import { CardData, CardElement, ElementVisualStyle, GlobalDesignStyles, AnonResponse } from '../../types';
 import { Plus, GripVertical, Trash2, Layout, Type, Image as ImageIcon, Link as LinkIcon, Play, Hash, Music, Timer, Heart, Settings, Settings2, Palette, Save, Eye, UploadCloud, Loader2, ChevronDown, List, Tag, ChevronLeft, ChevronRight } from 'lucide-react';
 import { motion, Reorder, AnimatePresence, useDragControls } from 'motion/react';
 import { db } from '../../lib/firebase';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, collection, query, where, onSnapshot } from 'firebase/firestore';
 import { cn } from '../../lib/utils';
 import { compressImageForWeb } from '../../lib/imageCompression';
-import { uploadImageToR2 } from '../../lib/r2Upload';
+import { deleteR2Image, uploadImageToR2 } from '../../lib/r2Upload';
 import { useAuth } from '../../context/AuthContext';
 import { buildEmbedHtmlFromUrl } from '../../lib/embed';
 import MusicPlayer from '../../components/MusicPlayer';
@@ -70,7 +70,18 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
     return () => window.removeEventListener('resize', updateTouchMode);
   }, []);
 
+  const UNIQUE_TYPES = ['visitor', 'anon_box'] as const;
+
   const handleAdd = (type: string) => {
+    // 唯一性限制
+    if ((UNIQUE_TYPES as readonly string[]).includes(type)) {
+      const exists = elements.some(el => el.type === type);
+      if (exists) {
+        const label = type === 'visitor' ? '訪客計數器' : '匿名箱';
+        alert(`${label}只能有一個！`);
+        return;
+      }
+    }
     const newEl: CardElement = {
       id: `el_${Date.now()}`,
       type: type as any,
@@ -188,13 +199,30 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
             onClick={(e) => { e.stopPropagation(); setSelectedId('profile'); setInspectorOpenId('profile'); }}
           >
             <motion.div
-              className={cn("w-32 h-32 rounded-[4rem] mx-auto mb-6 p-1.5 relative overflow-hidden transition-all", isProfileSelected ? "ring-4 ring-cat-blue" : "")}
-              style={{ willChange: 'transform' }}
+              className="w-32 h-32 mx-auto mb-6 relative overflow-hidden transition-all"
+              style={(() => {
+                const avatarComputed = resolveElementStyle(globalStyles?.avatarStyle, globalStyles);
+                return {
+                  willChange: 'transform',
+                  backgroundColor: avatarComputed.backgroundColor,
+                  borderColor: isProfileSelected ? '#5B9CF6' : avatarComputed.borderColor,
+                  borderWidth: avatarComputed.borderWidth ?? 3,
+                  borderStyle: (avatarComputed.borderStyle as string) ?? 'solid',
+                  borderRadius: avatarComputed.borderRadius ?? '2rem',
+                  padding: '6px',
+                };
+              })()}
             >
               <img
                 src={profileData.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${cardData.uid}`}
                 alt={profileData.displayName}
-                className="w-full h-full rounded-[2.8rem] object-cover"
+                className="w-full h-full object-cover"
+                style={(() => {
+                  const avatarComputed = resolveElementStyle(globalStyles?.avatarStyle, globalStyles);
+                  const r = avatarComputed.borderRadius;
+                  const num = typeof r === 'string' ? parseFloat(r) : (r ?? 32);
+                  return { borderRadius: `calc(${num}px - 6px)` };
+                })()}
               />
             </motion.div>
             <div className="space-y-1">
@@ -233,6 +261,24 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
                       el={el}
                       onEdit={() => setInspectorOpenId(el.id)}
                       onDuplicate={() => {
+                        // 唯一性限制
+                        const uniqueTypes = ['visitor', 'anon_box'];
+                        if (uniqueTypes.includes(el.type)) {
+                          const label = el.type === 'visitor' ? '訪客計數器' : '匿名箱';
+                          alert(`${label}只能有一個，無法複製！`);
+                          return;
+                        }
+                        // section header/footer 限制
+                        if (el.type === 'section') {
+                          const kind = el.content?.kind;
+                          if (kind === 'header' || kind === 'footer') {
+                            const already = elements.some(e => e.id !== el.id && e.type === 'section' && e.content?.kind === kind);
+                            if (already) {
+                              alert(`${kind === 'header' ? '頁首' : '頁腳'}區段只能有一個，無法複製！`);
+                              return;
+                            }
+                          }
+                        }
                         const newElement = {
                           ...el,
                           id: `el_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`
@@ -374,6 +420,14 @@ export default function EditorView({ cardData, ownerUid }: { cardData: CardData;
                       className="w-full p-4 bg-cream border-none rounded-xl text-sm outline-none focus:ring-2 ring-cat-blue/20 break-all"
                       placeholder="https://"
                     />
+                    <div className="mt-2">
+                      <ElementStyleControls
+                        style={globalStyles?.avatarStyle || {}}
+                        palette={globalStyles?.palette || DEFAULT_PALETTE}
+                        globalStyles={globalStyles}
+                        onUpdate={(patch) => setGlobalStyles((s) => ({ ...s, avatarStyle: { ...(s?.avatarStyle || {}), ...patch } }))}
+                      />
+                    </div>
                   </div>
                 </>
               ) : activeElement ? (
@@ -605,6 +659,97 @@ function EditorGalleryPreview({
   );
 }
 
+function AnonBoxEditorPreview({
+  el,
+  cardId,
+  computedStyle,
+}: {
+  el: CardElement;
+  cardId: string;
+  computedStyle: React.CSSProperties;
+}) {
+  const { content } = el;
+  const [publicReplies, setPublicReplies] = useState<AnonResponse[]>([]);
+
+  useEffect(() => {
+    if (!cardId) return;
+    const q = query(
+      collection(db, 'cards', cardId, 'responses'),
+      where('status', '==', 'replied')
+    );
+    const unsub = onSnapshot(q, (snapshot) => {
+      const rows = snapshot.docs.map((row) => ({ id: row.id, ...row.data() } as AnonResponse));
+      rows.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+      setPublicReplies(rows);
+    });
+    return () => unsub();
+  }, [cardId]);
+
+  return (
+    <div
+      style={computedStyle}
+      className="w-full p-8 rounded-[2rem] border-3 space-y-4 relative overflow-hidden pointer-events-none"
+    >
+      <div className="absolute -top-10 -right-10 opacity-10 rotate-12">
+        <Heart size={120} />
+      </div>
+      <div className="flex items-center gap-3 mb-2 relative z-10">
+        <div className="w-8 h-8 bg-white/30 rounded-xl flex items-center justify-center">
+          <Heart size={16} />
+        </div>
+        <h3 className="font-bold text-xl">{content.title || '給我留言'}</h3>
+      </div>
+      <div className="relative z-10 space-y-4">
+        <div
+          style={{ borderColor: computedStyle.borderColor, color: computedStyle.color }}
+          className="w-full bg-white/30 border-3 rounded-2xl p-5 truncate opacity-70"
+        >
+          {content.placeholder || '在此輸入想說的話...'}
+        </div>
+        <div
+          style={{ backgroundColor: computedStyle.borderColor, color: computedStyle.color }}
+          className="w-full py-4 rounded-[1.5rem] font-black uppercase tracking-widest flex items-center justify-center gap-2"
+        >
+          送出悄悄話
+        </div>
+        {publicReplies.length > 0 && (
+          <div
+            className="pt-4 space-y-3 border-t"
+            style={{ borderColor: computedStyle.borderColor }}
+          >
+            <div
+              className="text-xs font-bold tracking-widest uppercase"
+              style={{ color: computedStyle.color }}
+            >
+              公開回覆
+            </div>
+            {publicReplies.slice(0, 5).map((row) => (
+              <div
+                key={row.id}
+                className="rounded-2xl bg-white/10 border-3 p-4 space-y-2"
+                style={{ borderColor: computedStyle.borderColor }}
+              >
+                <div
+                  className="text-[11px]"
+                  style={{ color: computedStyle.color }}
+                >
+                  {row.message}
+                </div>
+                <div
+                  className="text-sm font-medium"
+                  style={{ color: computedStyle.color }}
+                >
+                  {row.reply}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ElementPreview({
   el,
   globalStyles,
@@ -630,7 +775,7 @@ function ElementPreview({
         className={cn(
           "font-bold leading-tight mx-auto p-5 border-3 rounded-[2rem] w-full",
           alignClass,
-          content.size === '6xl' ? 'text-4xl md:text-5xl font-black' : 'text-lg'
+          ({ sm: 'text-sm', md: 'text-base', lg: 'text-lg', '6xl': 'text-4xl md:text-5xl font-black' } as Record<string, string>)[content.size as string] ?? 'text-base'
         )}
       >
         <div className="markdown-body max-w-none prose-strong:font-black" dangerouslySetInnerHTML={{ __html: html }} />
@@ -651,64 +796,9 @@ function ElementPreview({
     );
   }
 
+
   if (type === 'anon_box') {
-    return (
-      <div
-        style={computedStyle}
-        className="w-full p-8 rounded-[2rem] border-3 space-y-4 relative overflow-hidden pointer-events-none"
-      >
-        <div className="absolute -top-10 -right-10 opacity-10 rotate-12">
-          <Heart size={120} />
-        </div>
-        <div className="flex items-center gap-3 mb-2 relative z-10">
-          <div className="w-8 h-8 bg-white/30 rounded-xl flex items-center justify-center">
-            <Heart size={16} />
-          </div>
-          <h3 className="font-bold text-xl">{content.title || '給我留言'}</h3>
-        </div>
-        <div className="relative z-10 space-y-4">
-          <div
-            style={{ borderColor: computedStyle.borderColor, color: computedStyle.color }}
-            className="w-full bg-white/30 border-3 rounded-2xl p-5 truncate opacity-70">
-            {content.placeholder || "在此輸入想說的話..."}
-          </div>
-          <div
-            style={{ backgroundColor: computedStyle.borderColor, color: computedStyle.color }}
-            className="w-full py-4 rounded-[1.5rem] font-black uppercase tracking-widest flex items-center justify-center gap-2"
-          >
-            送出悄悄話
-          </div>
-          <div
-            className="pt-4 space-y-3 border-t"
-            style={{ borderColor: computedStyle.borderColor, color: computedStyle.color }}
-          >
-            <div
-              className="text-xs font-bold tracking-widest uppercase"
-              style={{ color: computedStyle.color }}
-            >
-              公開回覆 (預覽)
-            </div>
-            <div
-              className="rounded-2xl bg-white/10 border-3 p-4 space-y-2"
-              style={{ borderColor: computedStyle.borderColor, color: computedStyle.color }}
-            >
-              <div
-                className="text-[11px] text-white/60"
-                style={{ color: computedStyle.color }}
-              >
-                這是預覽留言內容
-              </div>
-              <div
-                className="text-sm text-white font-medium"
-                style={{ color: computedStyle.color }}
-              >
-                這是預覽回覆內容
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+    return <AnonBoxEditorPreview el={el} cardId={cardId} computedStyle={computedStyle} />;
   }
 
   if (type === 'image') {
@@ -810,12 +900,13 @@ function ElementPreview({
       return (
         <div
           style={{
+            backgroundColor: computedStyle.backgroundColor,
             borderColor: computedStyle.borderColor,
             borderWidth: computedStyle.borderWidth ?? 3,
             borderStyle: computedStyle.borderStyle ?? 'solid',
             borderRadius: computedStyle.borderRadius ?? '2rem',
           }}
-          className="w-full overflow-hidden bg-cream flex flex-col items-center justify-center p-8 text-center pointer-events-none"
+          className="w-full overflow-hidden flex flex-col items-center justify-center p-8 text-center pointer-events-none"
         >
           <Play className="text-chocolate/20 mb-4" size={48} />
           <p className="font-bold text-chocolate">嵌入內容區域</p>
@@ -826,12 +917,13 @@ function ElementPreview({
     return (
       <div
         style={{
+          backgroundColor: computedStyle.backgroundColor,
           borderColor: computedStyle.borderColor,
           borderWidth: computedStyle.borderWidth ?? 3,
           borderStyle: computedStyle.borderStyle ?? 'solid',
           borderRadius: computedStyle.borderRadius ?? '2rem',
         }}
-        className="w-full overflow-hidden bg-cream flex flex-col items-center justify-center pointer-events-none"
+        className="w-full overflow-hidden flex flex-col items-center justify-center pointer-events-none"
       >
         <StableEmbedHtml embedHtml={embedHtml} />
       </div>
@@ -912,6 +1004,8 @@ function ImageUploadControl({ currentUrl, onUploadComplete }: { currentUrl?: str
 
       setProgress(100);
       setStatusText('上傳完成');
+      // 刪除舊 R2 圖片（非阻塞）
+      if (currentUrl) void deleteR2Image(currentUrl);
       onUploadComplete(uploadedUrl);
     } catch (error) {
       console.error(error);
@@ -1008,7 +1102,10 @@ function GlobalStyleControls({ styles, onChange }: { styles: GlobalDesignStyles;
             style={{ willChange: 'height, opacity' }}
           >
             <div className="space-y-3 px-3 py-3">
-              <CompactImageUploadControl onUploadComplete={(url) => update('backgroundImageUrl', url)} />
+              <CompactImageUploadControl
+                currentUrl={styles.backgroundImageUrl}
+                onUploadComplete={(url) => update('backgroundImageUrl', url)}
+              />
               <input
                 value={styles.backgroundImageUrl || ''}
                 onChange={(e) => update('backgroundImageUrl', e.target.value)}
@@ -1246,7 +1343,7 @@ function PaletteSelector({
   );
 }
 
-function CompactImageUploadControl({ onUploadComplete }: { onUploadComplete: (url: string) => void }) {
+function CompactImageUploadControl({ currentUrl, onUploadComplete }: { currentUrl?: string; onUploadComplete: (url: string) => void }) {
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
 
@@ -1267,6 +1364,8 @@ function CompactImageUploadControl({ onUploadComplete }: { onUploadComplete: (ur
         onProgress: (p) => setProgress(Math.min(99, Math.max(5, p))),
       });
       setProgress(100);
+      // 刪除舊 R2 圖片（非阻塞）
+      if (currentUrl) void deleteR2Image(currentUrl);
       onUploadComplete(uploadedUrl);
     } catch (error) {
       console.error(error);
@@ -1621,7 +1720,6 @@ function InspectorControls({ el, onUpdate, cardData, globalStyles }: { el: CardE
             固定區段不需要名稱或 # 錨點。
           </div>
         )}
-        <ElementStyleControls style={el.style || {}} palette={palette} globalStyles={globalStyles} onUpdate={updateStyle} />
       </div>
     );
   }
@@ -1788,7 +1886,6 @@ function ElementStyleControls({
                     <option value="dashed">虛線</option>
                     <option value="dotted">點線</option>
                     <option value="double">雙線</option>
-                    <option value="wavy">波浪線</option>
                   </select>
                 </div>
               </div>
@@ -1998,7 +2095,6 @@ function SortableElementItem({
       onPointerLeave={clearDragTimer}
       className={cn(
         'relative cursor-pointer group rounded-[2.2rem]',
-        selectedId === el.id ? 'ring-4 ring-cat-blue/50' : ''
       )}
       style={{ touchAction: 'pan-y', userSelect: 'none', WebkitUserSelect: 'none', willChange: 'transform' } as React.CSSProperties}
     >
@@ -2009,7 +2105,10 @@ function SortableElementItem({
         onPointerUp={clearDragTimer}
         onPointerCancel={clearDragTimer}
         onPointerLeave={clearDragTimer}
-        className="absolute -left-12 top-1/2 -translate-y-1/2 p-2 text-chocolate/20 bg-white rounded-2xl border-3 border-chocolate/10 shadow-lg hover:text-chocolate/50 transition-colors cursor-move opacity-0 group-hover:opacity-100 xl:opacity-100 xl:flex hidden flex-col items-center gap-2 z-10"
+        className={cn(
+          "absolute -left-12 top-1/2 -translate-y-1/2 p-2 bg-white rounded-2xl border-3 shadow-lg transition-colors cursor-move opacity-0 group-hover:opacity-100 xl:opacity-100 xl:flex hidden flex-col items-center gap-2 z-10",
+          selectedId === el.id ? 'border-cat-blue text-cat-blue' : 'border-chocolate/10 text-chocolate/20 hover:text-chocolate/50'
+        )}
         style={{ touchAction: 'none' }}
         title="拖曳排序"
       >
@@ -2024,7 +2123,10 @@ function SortableElementItem({
           onPointerUp={clearDragTimer}
           onPointerCancel={clearDragTimer}
           onPointerLeave={clearDragTimer}
-          className="absolute left-6 top-1/2 -translate-y-1/2 p-2 text-chocolate/30 bg-white rounded-2xl border-3 border-chocolate/10 shadow-lg cursor-move z-10"
+          className={cn(
+            "absolute left-6 top-1/2 -translate-y-1/2 p-2 bg-white rounded-2xl border-3 shadow-lg cursor-move z-10",
+            selectedId === el.id ? 'border-cat-blue text-cat-blue' : 'border-chocolate/10 text-chocolate/30'
+          )}
           style={{ touchAction: 'none' }}
           title="長按拖曳排序"
         >
@@ -2052,7 +2154,7 @@ function fromLocalDatetimeInputValue(value?: string): string {
   return date.toISOString();
 }
 
-function GalleryImageUpload({ onUploadComplete }: { onUploadComplete: (url: string) => void }) {
+function GalleryImageUpload({ currentUrl, onUploadComplete }: { currentUrl?: string; onUploadComplete: (url: string) => void }) {
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
 
@@ -2075,6 +2177,8 @@ function GalleryImageUpload({ onUploadComplete }: { onUploadComplete: (url: stri
         onProgress: (p) => setProgress(Math.min(99, Math.max(5, p))),
       });
       setProgress(100);
+      // 刪除舊 R2 圖片（非阻塞）
+      if (currentUrl) void deleteR2Image(currentUrl);
       onUploadComplete(uploadedUrl);
     } catch (error) {
       console.error(error);
@@ -2218,6 +2322,7 @@ function GalleryInspector({ content, handleChange, style, palette, globalStyles,
 
                       <div className="p-3 space-y-2">
                         <GalleryImageUpload
+                          currentUrl={img.url}
                           onUploadComplete={(url) => {
                             const next = images.map((it, i) => i === index ? { ...it, url } : it);
                             updateImages(next);

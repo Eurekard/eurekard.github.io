@@ -323,13 +323,30 @@ export default function Profile() {
         <div className="text-center mb-12">
           <motion.div
             whileHover={{ scale: 1.05 }}
-            className="w-32 h-32 rounded-[4rem] mx-auto mb-6 p-1.5 relative overflow-hidden"
-            style={{ willChange: 'transform' }}
+            className="w-32 h-32 mx-auto mb-6 relative overflow-hidden"
+            style={(() => {
+              const avatarComputed = resolveElementStyle(globalStyles.avatarStyle, globalStyles);
+              return {
+                willChange: 'transform',
+                backgroundColor: avatarComputed.backgroundColor,
+                borderColor: avatarComputed.borderColor,
+                borderWidth: avatarComputed.borderWidth ?? 3,
+                borderStyle: (avatarComputed.borderStyle as string) ?? 'solid',
+                borderRadius: avatarComputed.borderRadius ?? '2rem',
+                padding: '6px',
+              };
+            })()}
           >
             <img
               src={data.profile?.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.uid}`}
               alt={data.profile?.displayName || username}
-              className="w-full h-full rounded-[2.8rem] object-cover"
+              className="w-full h-full object-cover"
+              style={(() => {
+                const avatarComputed = resolveElementStyle(globalStyles.avatarStyle, globalStyles);
+                const r = avatarComputed.borderRadius;
+                const num = typeof r === 'string' ? parseFloat(r) : (r ?? 32);
+                return { borderRadius: `calc(${num}px - 6px)` };
+              })()}
             />
           </motion.div>
           <div className="space-y-1">
@@ -456,7 +473,7 @@ function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, se
         className={cn(
           "font-bold leading-tight mx-auto p-5 border-3 rounded-[2rem] w-full",
           alignClass,
-          content.size === '6xl' ? 'text-4xl md:text-5xl font-black' : 'text-lg'
+          ({ sm: 'text-sm', md: 'text-base', lg: 'text-lg', '6xl': 'text-4xl md:text-5xl font-black' } as Record<string, string>)[content.size as string] ?? 'text-base'
         )}
       >
         <div
@@ -683,12 +700,13 @@ function RenderElement({ el, cardId, onSendAnon, anonMessage, setAnonMessage, se
     return (
       <div
         style={{
+          backgroundColor: computedStyle.backgroundColor,
           borderColor: computedStyle.borderColor,
           borderWidth: computedStyle.borderWidth ?? 3,
           borderStyle: computedStyle.borderStyle ?? 'solid',
           borderRadius: computedStyle.borderRadius ?? '2rem',
         }}
-        className="w-full overflow-hidden bg-cream flex flex-col items-center justify-center embed-container"
+        className="w-full overflow-hidden flex flex-col items-center justify-center embed-container"
         dangerouslySetInnerHTML={{ __html: embedHtml }}
       />
     );

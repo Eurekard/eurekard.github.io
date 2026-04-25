@@ -43,6 +43,7 @@ export interface GlobalDesignStyles {
   componentBorderWidth?: number;
   componentBorderStyle?: 'solid' | 'dashed' | 'dotted' | 'double';
   componentBorderRadius?: number;
+  avatarStyle?: ElementVisualStyle;
 }
 
 export interface CardData {

@@ -79,3 +79,33 @@ export async function uploadImageToR2(params: {
     xhr.send(JSON.stringify(payload));
   });
 }
+
+/**
+ * 判斷一個 URL 是否屬於本站 R2 bucket（以 /uploads/ 路徑 + avif/webp 副檔名識別）
+ */
+export function isR2Url(url: string): boolean {
+  if (!url) return false;
+  try {
+    const u = new URL(url);
+    return u.pathname.startsWith('/uploads/') && /\.(avif|webp)$/i.test(u.pathname);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 呼叫後端 API 刪除 R2 上的舊圖片。
+ * 若 URL 不屬於 R2 或刪除失敗，僅記錄 warning，不拋錯。
+ */
+export async function deleteR2Image(url: string): Promise<void> {
+  if (!isR2Url(url)) return;
+  try {
+    await fetch('/api/delete-image', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url }),
+    });
+  } catch (err) {
+    console.warn('deleteR2Image: 刪除舊圖失敗（非阻塞）', err);
+  }
+}

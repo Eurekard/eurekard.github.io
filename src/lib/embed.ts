@@ -22,7 +22,7 @@ export function buildEmbedHtmlFromUrl(rawUrl: string): string {
   if (spotifyMatch?.[1] && spotifyMatch?.[2]) {
     const kind = spotifyMatch[1];
     const id = spotifyMatch[2];
-    return `<iframe style="border-radius:12px" src="https://open.spotify.com/embed/${kind}/${id}" width="100%" height="352" frameborder="0" allowfullscreen="" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>`;
+    return `<iframe src="https://open.spotify.com/embed/${kind}/${id}" width="100%" height="352" frameborder="0" allowfullscreen="" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>`;
   }
 
   if (input.startsWith('<iframe')) {
