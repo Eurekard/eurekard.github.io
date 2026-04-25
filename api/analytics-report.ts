@@ -2,7 +2,7 @@
  * api/analytics-report.ts
  * Vercel Serverless Function – GA4 Data API proxy.
  *
- * GET /api/analytics-report?uid=<cardOwnerUid>&days=7|30&username=<username>
+ * GET /api/analytics-report?uid=<cardOwnerUid>&days=7|30&username=<username>&displayName=<displayName>
  *
  * Returns:
  *   - realtimeViews / realtimeActiveUsers  (last 30 min, from runRealtimeReport)
@@ -31,6 +31,8 @@ export default async function handler(req: any, res: any) {
 
   const uid = typeof req.query?.uid === 'string' ? req.query.uid.trim() : '';
   const username = typeof req.query?.username === 'string' ? req.query.username.trim() : '';
+  // displayName is used to filter realtime report rows (unifiedScreenName = "{displayName} | Eurekard")
+  const displayName = typeof req.query?.displayName === 'string' ? req.query.displayName.trim() : '';
   const daysParam = req.query?.days;
   const days = daysParam === '30' ? 30 : 7;
 
@@ -116,8 +118,18 @@ export default async function handler(req: any, res: any) {
     const totalClicks = Math.max(0, totalAllEvents - totalViews);
 
     // ── Parse realtime stats ─────────────────────────────────────────────────
-    // rows are grouped by unifiedScreenName (page title) — sum across all pages
-    const rtRows = realtimeRes[0]?.rows || [];
+    // Rows are grouped by unifiedScreenName (page title = "{displayName} | Eurekard").
+    // Filter to only include this user's card page rows if displayName is provided.
+    const allRtRows = realtimeRes[0]?.rows || [];
+    const rtRows = displayName
+      ? allRtRows.filter((r) => {
+          const screenName = r.dimensionValues?.[0]?.value || '';
+          // Match: screen name starts with the displayName (handles "尤里卡" and "尤里卡 | Eurekard")
+          return screenName === displayName ||
+                 screenName.startsWith(displayName + ' |') ||
+                 screenName.startsWith(displayName + '|');
+        })
+      : allRtRows;
     const realtimeActiveUsers = rtRows.reduce((s, r) => s + parseInt(r.metricValues?.[0]?.value || '0', 10), 0);
     const realtimeAllEvents = rtRows.reduce((s, r) => s + parseInt(r.metricValues?.[1]?.value || '0', 10), 0);
     // eventCount includes page_view events; approximate views ≈ activeUsers for realtime

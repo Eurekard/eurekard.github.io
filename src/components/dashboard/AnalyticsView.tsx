@@ -22,7 +22,7 @@ type AnalyticsReport = {
   realtimeActiveUsers: number;
 };
 
-export default function AnalyticsView({ cardId, username }: { cardId: string; username?: string }) {
+export default function AnalyticsView({ cardId, username, displayName }: { cardId: string; username?: string; displayName?: string }) {
   const [report, setReport] = useState<AnalyticsReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -65,6 +65,7 @@ export default function AnalyticsView({ cardId, username }: { cardId: string; us
     try {
       const params = new URLSearchParams({ uid: cardId, days: String(rangeDays) });
       if (username) params.set('username', username);
+      if (displayName) params.set('displayName', displayName);
       const res = await fetch(`/api/analytics-report?${params}`);
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
