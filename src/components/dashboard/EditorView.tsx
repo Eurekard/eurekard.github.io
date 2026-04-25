@@ -1545,7 +1545,7 @@ function LayoutEditorBlock({
                       </div>
                     )}
                     <div className="pointer-events-none">
-                      <ElementPreview el={child} globalStyles={globalStyles} cardId={cardId} editorVisitorMode="display" />
+                      <ElementPreview el={child} globalStyles={globalStyles} cardId={cardId ?? ''} editorVisitorMode="display" />
                     </div>
                   </SortableElementItem>
                 ))}
@@ -1556,7 +1556,7 @@ function LayoutEditorBlock({
                 <div className="absolute inset-0 pointer-events-none opacity-60 ring-2 ring-cat-blue/40 z-10"
                   style={{ borderRadius: draggingElement.style?.radius ?? globalStyles.componentBorderRadius ?? 32, overflow: 'hidden' }}
                 >
-                  <ElementPreview el={draggingElement} globalStyles={globalStyles} cardId={cardId} editorVisitorMode="display" />
+                  <ElementPreview el={draggingElement} globalStyles={globalStyles} cardId={cardId ?? ''} editorVisitorMode="display" />
                 </div>
               )}
 
